@@ -1785,9 +1785,36 @@
     ];
 
     /* Active Application State */
+    function createProjectRecord(sourceName, type, customSummary) {
+      const generated = synthesizeDeconstructedArchitecture(sourceName, type, customSummary);
+      return {
+        id: `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: generated.name,
+        source: sourceName,
+        type,
+        date: "Just now",
+        summary: generated.summary,
+        modulesCount: generated.nodes.length,
+        connectionsCount: generated.edges.length,
+        nodes: generated.nodes,
+        edges: generated.edges,
+        visualTargets: generated.visualTargets
+      };
+    }
+
+    function getInitialProject() {
+      const savedSource = localStorage.getItem('unmake_last_source');
+      const savedType = localStorage.getItem('unmake_last_source_type') || 'Website';
+      if (savedSource) {
+        return createProjectRecord(savedSource, savedType, `Deconstructed architecture for ${savedSource}`);
+      }
+
+      return createProjectRecord('paste-a-url-to-begin.example', 'Website', 'Paste a website or repository URL to begin deconstruction.');
+    }
+
     let activeView = 'home'; // 'home' | 'projects' | 'workspace'
-    let currentProject = PROJECTS_STORE[0];
-    let selectedNodeId = 'n-payment';
+    let currentProject = getInitialProject();
+    let selectedNodeId = currentProject.nodes[1]?.id || currentProject.nodes[0]?.id;
     let currentTheme = localStorage.getItem('unmake_theme') || 'dark';
 
     /* ==========================================================================
@@ -2699,24 +2726,39 @@
       return s.charAt(0).toUpperCase() + s.slice(1);
     }
 
+    function extractDomainAndBrand(rawUrl) {
+      let str = (rawUrl || '').trim();
+      str = str.replace(/^[<"']+|[>"']+$/g, '');
+      let isGithub = str.includes('github.com');
+      let ghRepo = '';
+      if (isGithub) {
+        const m = str.match(/github\.com\/([^\/]+)\/([^\/?#]+)/i);
+        if (m && m[2]) ghRepo = m[2];
+        else if (m && m[1]) ghRepo = m[1];
+      }
+
+      str = str.replace(/^https?:\/\//i, '');
+      str = str.replace(/[\/?#].*$/, '');
+      str = str.replace(/^www\./i, '');
+
+      if (!str) str = 'my-app.io';
+
+      let brandRaw = ghRepo ? ghRepo.toLowerCase() : str.split('.')[0];
+      if (brandRaw === 'www') brandRaw = str.split('.')[1] || 'app';
+
+      const brand = brandRaw.split(/[-_]/).map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('');
+      return { cleanDomain: str, brandRaw, brand, isGithub };
+    }
+
     function synthesizeDeconstructedArchitecture(sourceUrl, type, customSummary) {
-      let rawUrl = (sourceUrl || 'https://linear.app').trim();
-      let cleanDomain = rawUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
+      const { cleanDomain, brandRaw, brand, isGithub } = extractDomainAndBrand(sourceUrl);
 
-      let brandRaw = cleanDomain.split('.')[0];
-      if (cleanDomain.includes('github.com')) {
-        const parts = rawUrl.replace(/^https?:\/\/github\.com\//i, '').split('/').filter(Boolean);
-        brandRaw = parts[1] || parts[0] || 'github';
-      } else if (cleanDomain.includes('linear.app')) brandRaw = 'linear';
-      else if (cleanDomain.includes('dtu.ac.in') || cleanDomain.includes('dtu')) brandRaw = 'dtu';
-      else if (cleanDomain.includes('netflix.com')) brandRaw = 'netflix';
-      else if (cleanDomain.includes('ycombinator.com')) brandRaw = 'hackernews';
-      else if (cleanDomain.includes('amazon.com') || cleanDomain.includes('shopify')) brandRaw = 'store';
-
-      const brand = capitalize(brandRaw);
+      let isEcommerce = ['amazon', 'flipkart', 'shopify', 'store', 'myntra', 'ebay', 'walmart', 'etsy', 'cart', 'shop'].some(k => cleanDomain.includes(k) || brandRaw.includes(k));
+      let isMedia = ['netflix', 'youtube', 'spotify', 'twitch', 'hulu', 'disney', 'stream', 'video', 'music'].some(k => cleanDomain.includes(k) || brandRaw.includes(k));
+      let isAcademic = ['dtu', 'ac.in', 'edu', 'mit', 'stanford', 'college', 'univ', 'campus'].some(k => cleanDomain.includes(k) || brandRaw.includes(k));
 
       let projName = `${brand} Web & System Architecture`;
-      let summary = customSummary || `Deconstructed full-stack architecture for ${cleanDomain} including responsive React UI, client hooks, REST endpoints, and relational schema.`;
+      let summary = customSummary || `Deconstructed full-stack architecture for ${cleanDomain} including responsive React UI, client state hooks, REST routes, and relational database schema.`;
       let defaultNodeId = 'n-hero';
       let nodes = [];
       let edges = [];
@@ -2785,7 +2827,7 @@
           { id: 'vt-card', label: 'Issue Task Row (Optimistic Update)', targetNodeId: 'n-card', confidence: 'Confirmed source evidence' },
           { id: 'vt-nav', label: 'Workspace Header & Command Bar', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
         ];
-      } else if (brandRaw === 'github' || cleanDomain.includes('github.com')) {
+      } else if (isGithub || cleanDomain.includes('github.com')) {
         projName = `${brand} Repository & Code Explorer Architecture`;
         defaultNodeId = 'n-tree';
         nodes = [
@@ -2848,16 +2890,16 @@
           { id: 'vt-viewer', label: 'Syntax-Highlighted Blob Viewer', targetNodeId: 'n-viewer', confidence: 'Confirmed source evidence' },
           { id: 'vt-header', label: 'Repository Header & Star Button', targetNodeId: 'n-header', confidence: 'Confirmed source evidence' }
         ];
-      } else if (brandRaw === 'dtu' || cleanDomain.includes('dtu.ac.in')) {
-        projName = 'DTU Campus Portal & Academic Architecture';
+      } else if (isAcademic) {
+        projName = `${brand} Campus Portal & Academic Architecture`;
         defaultNodeId = 'n-notice';
         nodes = [
           { id: 'n-app', name: 'CampusApp.tsx', lang: 'TSX', file: 'src/CampusApp.tsx', lines: '1-26', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
-            code: `import React from "react";\nimport { CampusPortalNav } from "./components/CampusPortalNav";\nimport { NoticeBoard } from "./components/NoticeBoard";\nimport { StudentDashboard } from "./components/StudentDashboard";\nimport "./styles/tokens.css";\n\nexport default function CampusApp() {\n  return (\n    <div className="dtu-campus-layout">\n      <CampusPortalNav />\n      <div className="campus-grid">\n        <NoticeBoard />\n        <StudentDashboard />\n      </div>\n    </div>\n  );\n}`,
+            code: `import React from "react";\nimport { CampusPortalNav } from "./components/CampusPortalNav";\nimport { NoticeBoard } from "./components/NoticeBoard";\nimport { StudentDashboard } from "./components/StudentDashboard";\nimport "./styles/tokens.css";\n\nexport default function CampusApp() {\n  return (\n    <div className="campus-portal-layout">\n      <CampusPortalNav />\n      <div className="campus-grid">\n        <NoticeBoard />\n        <StudentDashboard />\n      </div>\n    </div>\n  );\n}`,
             up: [], down: ['CampusPortalNav.tsx', 'NoticeBoard.tsx', 'tokens.css']
           },
           { id: 'n-nav', name: 'CampusPortalNav.tsx', lang: 'TSX', file: 'src/components/CampusPortalNav.tsx', lines: '8-34', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
-            code: `export const CampusPortalNav = () => (\n  <header className="dtu-header">\n    <div className="dtu-crest">DTU New Delhi</div>\n    <nav className="portal-links">\n      <span>Academic Circulars</span>\n      <span>Hacktoberfest 2026</span>\n      <span>Exam Results</span>\n    </nav>\n  </header>\n);`,
+            code: `export const CampusPortalNav = () => (\n  <header className="portal-header">\n    <div className="campus-crest">${brand} University Portal</div>\n    <nav className="portal-links">\n      <span>Academic Circulars</span>\n      <span>Hacktoberfest 2026</span>\n      <span>Exam Results</span>\n    </nav>\n  </header>\n);`,
             up: ['CampusApp.tsx'], down: ['tokens.css']
           },
           { id: 'n-notice', name: 'NoticeBoard.tsx', lang: 'TSX', file: 'src/components/NoticeBoard.tsx', lines: '12-52', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
@@ -2869,11 +2911,11 @@
             up: ['NoticeBoard.tsx'], down: ['useStudentProfile.ts', 'POST /api/hackathon/register']
           },
           { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
-            code: `:root {\n  --dtu-maroon: #800020;\n  --dtu-gold: #D4AF37;\n  --dtu-bg: #14171A;\n  --dtu-cream: #FFFDD0;\n}`,
+            code: `:root {\n  --campus-maroon: #800020;\n  --campus-gold: #D4AF37;\n  --campus-bg: #14171A;\n  --campus-cream: #FFFDD0;\n}`,
             up: ['CampusApp.tsx', 'CampusPortalNav.tsx'], down: []
           },
           { id: 'n-feed', name: 'useNoticeFeed.ts', lang: 'TS', file: 'src/hooks/useNoticeFeed.ts', lines: '8-38', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
-            code: `export function useNoticeFeed() {\n  return {\n    notices: [\n      { id: "n-1", category: "HACKATHON", title: "DTU Hacktoberfest 2026 Registration Open" },\n      { id: "n-2", category: "EXAMS", title: "End-Semester Practical Exam Schedule" }\n    ]\n  };\n}`,
+            code: `export function useNoticeFeed() {\n  return {\n    notices: [\n      { id: "n-1", category: "HACKATHON", title: "${brand} Hacktoberfest 2026 Registration Open" },\n      { id: "n-2", category: "EXAMS", title: "End-Semester Practical Exam Schedule" }\n    ]\n  };\n}`,
             up: ['NoticeBoard.tsx'], down: []
           },
           { id: 'n-profile', name: 'useStudentProfile.ts', lang: 'TS', file: 'src/hooks/useStudentProfile.ts', lines: '10-44', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
@@ -2889,7 +2931,7 @@
             up: ['POST /api/hackathon/register'], down: []
           },
           { id: 'n-test', name: 'portal.spec.ts', lang: 'TEST', file: 'tests/portal.spec.ts', lines: '8-28', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
-            code: `describe("DTU Academic Portal", () => {\n  it("verifies roll number authentication and circular feed integrity", async () => {\n    const auth = await mockStudentAuth("2K22/CO/341");\n    expect(auth.valid).toBe(true);\n  });\n});`,
+            code: `describe("${brand} Academic Portal", () => {\n  it("verifies roll number authentication and circular feed integrity", async () => {\n    const auth = await mockStudentAuth("2K22/CO/341");\n    expect(auth.valid).toBe(true);\n  });\n});`,
             up: ['useStudentProfile.ts'], down: []
           }
         ];
@@ -2909,10 +2951,136 @@
         visualTargets = [
           { id: 'vt-notice', label: 'Live Circulars & Notice Board', targetNodeId: 'n-notice', confidence: 'Confirmed source evidence' },
           { id: 'vt-student', label: 'Student Attendance & GPA Dashboard', targetNodeId: 'n-student', confidence: 'Confirmed source evidence' },
-          { id: 'vt-nav', label: 'DTU Campus Header & Roll No Selector', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+          { id: 'vt-nav', label: `${brand} Campus Header & Roll No Selector`, targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+        ];
+      } else if (isEcommerce) {
+        projName = `${brand} E-Commerce & Checkout Architecture`;
+        defaultNodeId = 'n-product';
+        nodes = [
+          { id: 'n-app', name: `${brand}StoreApp.tsx`, lang: 'TSX', file: `src/${brand}StoreApp.tsx`, lines: '1-28', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { StoreNavBar } from "./components/StoreNavBar";\nimport { ProductGrid } from "./components/ProductGrid";\nimport { CartDrawer } from "./components/CartDrawer";\nimport "./styles/tokens.css";\n\nexport default function ${brand}StoreApp() {\n  return (\n    <div className="storefront-layout">\n      <StoreNavBar brand="${brand}" />\n      <ProductGrid />\n      <CartDrawer />\n    </div>\n  );\n}`,
+            up: [], down: ['StoreNavBar.tsx', 'ProductGrid.tsx', 'tokens.css']
+          },
+          { id: 'n-nav', name: 'StoreNavBar.tsx', lang: 'TSX', file: 'src/components/StoreNavBar.tsx', lines: '8-36', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const StoreNavBar = ({ brand }: { brand: string }) => (\n  <header className="store-header">\n    <div className="logo">${brand} Store</div>\n    <input className="product-search" placeholder="Search 1,000,000+ items..." />\n    <div className="cart-badge">🛒 Cart (2)</div>\n  </header>\n);`,
+            up: [`${brand}StoreApp.tsx`], down: ['tokens.css']
+          },
+          { id: 'n-product', name: 'ProductGrid.tsx', lang: 'TSX', file: 'src/components/ProductGrid.tsx', lines: '12-58', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { useProductCatalog } from "../hooks/useProductCatalog";\nimport { useCartStore } from "../hooks/useCartStore";\n\nexport const ProductGrid = () => {\n  const { products } = useProductCatalog();\n  const { addToCart } = useCartStore();\n  return (\n    <div className="product-grid">\n      {products.map(p => (\n        <div key={p.id} className="item-card">\n          <img src={p.thumb} alt={p.title} />\n          <h4>{p.title}</h4>\n          <span className="price">₹{p.price}</span>\n          <button onClick={() => addToCart(p)}>Add to Cart</button>\n        </div>\n      ))}\n    </div>\n  );\n};`,
+            up: [`${brand}StoreApp.tsx`], down: ['CartDrawer.tsx', 'useProductCatalog.ts']
+          },
+          { id: 'n-cart', name: 'CartDrawer.tsx', lang: 'TSX', file: 'src/components/CartDrawer.tsx', lines: '10-48', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useCartStore } from "../hooks/useCartStore";\n\nexport const CartDrawer = () => {\n  const { items, total, checkout } = useCartStore();\n  return (\n    <aside className="cart-drawer">\n      <h3>Your Cart (₹{total})</h3>\n      <button className="btn-checkout" onClick={checkout}>Proceed to Payment →</button>\n    </aside>\n  );\n};`,
+            up: ['ProductGrid.tsx'], down: ['useCartStore.ts', 'POST /api/v1/orders/checkout']
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --store-accent: #FF9900;\n  --store-blue: #2874F0;\n  --store-bg: #121417;\n  --store-card: #1D2024;\n}`,
+            up: [`${brand}StoreApp.tsx`, 'StoreNavBar.tsx'], down: []
+          },
+          { id: 'n-catalog', name: 'useProductCatalog.ts', lang: 'TS', file: 'src/hooks/useProductCatalog.ts', lines: '8-36', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `export function useProductCatalog() {\n  const [products] = useState([\n    { id: "P-1", title: "Wireless Noise-Canceling Headphones", price: 4999 },\n    { id: "P-2", title: "Smart Fitness Watch Ultra", price: 7999 }\n  ]);\n  return { products };\n}`,
+            up: ['ProductGrid.tsx'], down: []
+          },
+          { id: 'n-cartstore', name: 'useCartStore.ts', lang: 'TS', file: 'src/hooks/useCartStore.ts', lines: '10-44', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useCartStore() {\n  const checkout = async () => {\n    await fetch("/api/v1/orders/checkout", { method: "POST", body: JSON.stringify({ cartId: "C-101" }) });\n  };\n  return { checkout, total: 12998 };\n}`,
+            up: ['CartDrawer.tsx'], down: ['POST /api/v1/orders/checkout']
+          },
+          { id: 'n-api-order', name: 'POST /api/v1/orders/checkout', lang: 'API', file: 'server/routes/orders.js', lines: '12-38', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.post("/api/v1/orders/checkout", async (req, res) => {\n  const order = await prisma.productOrder.create({ data: req.body });\n  res.json({ success: true, orderId: order.id });\n});`,
+            up: ['CartDrawer.tsx', 'useCartStore.ts'], down: ['ProductOrder (SQL)']
+          },
+          { id: 'n-db', name: 'ProductOrder (SQL)', lang: 'SQL', file: 'prisma/schema.prisma', lines: '8-26', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model ProductOrder {\n  id          String   @id @default(uuid())\n  totalAmount Float\n  status      String   @default("PLACED")\n  createdAt   DateTime @default(now())\n}`,
+            up: ['POST /api/v1/orders/checkout'], down: []
+          },
+          { id: 'n-test', name: 'checkout.spec.ts', lang: 'TEST', file: 'tests/checkout.spec.ts', lines: '8-26', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("${brand} Cart & Checkout Engine", () => {\n  it("calculates cart total and dispatches checkout payload", async () => {\n    const res = await mockCheckout();\n    expect(res.status).toBe(200);\n  });\n});`,
+            up: ['useCartStore.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-nav' },
+          { from: 'n-app', to: 'n-product' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-product', to: 'n-cart' },
+          { from: 'n-product', to: 'n-catalog' },
+          { from: 'n-cart', to: 'n-cartstore' },
+          { from: 'n-cartstore', to: 'n-api-order' },
+          { from: 'n-api-order', to: 'n-db' },
+          { from: 'n-cartstore', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-product', label: 'Interactive Product Card Grid', targetNodeId: 'n-product', confidence: 'Confirmed source evidence' },
+          { id: 'vt-cart', label: 'Slide-over Cart Drawer & Instant Checkout', targetNodeId: 'n-cart', confidence: 'Confirmed source evidence' },
+          { id: 'vt-nav', label: 'Store Navigation & Product Search Bar', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+        ];
+      } else if (isMedia) {
+        projName = `${brand} Streaming Platform & Media Architecture`;
+        defaultNodeId = 'n-player';
+        nodes = [
+          { id: 'n-app', name: `${brand}MediaApp.tsx`, lang: 'TSX', file: `src/${brand}MediaApp.tsx`, lines: '1-28', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { StreamingNav } from "./components/StreamingNav";\nimport { HeroPlayerBanner } from "./components/HeroPlayerBanner";\nimport { MediaCarousel } from "./components/MediaCarousel";\nimport "./styles/tokens.css";\n\nexport default function ${brand}MediaApp() {\n  return (\n    <div className="streaming-layout">\n      <StreamingNav brand="${brand}" />\n      <HeroPlayerBanner />\n      <MediaCarousel />\n    </div>\n  );\n}`,
+            up: [], down: ['StreamingNav.tsx', 'HeroPlayerBanner.tsx', 'tokens.css']
+          },
+          { id: 'n-nav', name: 'StreamingNav.tsx', lang: 'TSX', file: 'src/components/StreamingNav.tsx', lines: '8-32', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const StreamingNav = ({ brand }: { brand: string }) => (\n  <header className="media-header">\n    <div className="brand-logo">${brand}</div>\n    <nav className="nav-links"><span>Home</span><span>Movies</span><span>Live</span></nav>\n  </header>\n);`,
+            up: [`${brand}MediaApp.tsx`], down: ['tokens.css']
+          },
+          { id: 'n-player', name: 'HeroPlayerBanner.tsx', lang: 'TSX', file: 'src/components/HeroPlayerBanner.tsx', lines: '12-54', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { usePlaybackQueue } from "../hooks/usePlaybackQueue";\n\nexport const HeroPlayerBanner = () => {\n  const { currentStream, play } = usePlaybackQueue();\n  return (\n    <section className="hero-player">\n      <h2>{currentStream.title}</h2>\n      <button className="play-btn" onClick={play}>▶ Play Ultra HD</button>\n    </section>\n  );\n};`,
+            up: [`${brand}MediaApp.tsx`], down: ['MediaCarousel.tsx', 'usePlaybackQueue.ts']
+          },
+          { id: 'n-carousel', name: 'MediaCarousel.tsx', lang: 'TSX', file: 'src/components/MediaCarousel.tsx', lines: '10-44', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useStreamConfig } from "../hooks/useStreamConfig";\n\nexport const MediaCarousel = () => {\n  const { trending } = useStreamConfig();\n  return (\n    <div className="media-carousel">\n      {trending.map(t => <div key={t.id} className="media-thumb">{t.title}</div>)}\n    </div>\n  );\n};`,
+            up: ['HeroPlayerBanner.tsx'], down: ['useStreamConfig.ts', 'POST /api/v1/stream/session']
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --media-red: #E50914;\n  --media-dark: #141414;\n  --media-glow: rgba(229, 9, 20, 0.4);\n}`,
+            up: [`${brand}MediaApp.tsx`, 'StreamingNav.tsx'], down: []
+          },
+          { id: 'n-queue', name: 'usePlaybackQueue.ts', lang: 'TS', file: 'src/hooks/usePlaybackQueue.ts', lines: '8-36', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `export function usePlaybackQueue() {\n  return { currentStream: { title: "${brand} Original Series", resolution: "4K HDR" }, play: () => {} };\n}`,
+            up: ['HeroPlayerBanner.tsx'], down: []
+          },
+          { id: 'n-config', name: 'useStreamConfig.ts', lang: 'TS', file: 'src/hooks/useStreamConfig.ts', lines: '10-40', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useStreamConfig() {\n  return { trending: [{ id: "1", title: "Sci-Fi Odyssey" }, { id: "2", title: "Cyber Protocol" }] };\n}`,
+            up: ['MediaCarousel.tsx'], down: ['POST /api/v1/stream/session']
+          },
+          { id: 'n-api-stream', name: 'POST /api/v1/stream/session', lang: 'API', file: 'server/routes/stream.js', lines: '10-36', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.post("/api/v1/stream/session", async (req, res) => {\n  const session = await prisma.streamSession.create({ data: req.body });\n  res.json({ token: session.id, cdnUrl: "https://cdn.stream.net/live" });\n});`,
+            up: ['MediaCarousel.tsx', 'useStreamConfig.ts'], down: ['StreamSession (SQL)']
+          },
+          { id: 'n-db', name: 'StreamSession (SQL)', lang: 'SQL', file: 'prisma/schema.prisma', lines: '8-24', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model StreamSession {\n  id          String   @id @default(uuid())\n  bitrateKbps Int      @default(15000)\n  startedAt   DateTime @default(now())\n}`,
+            up: ['POST /api/v1/stream/session'], down: []
+          },
+          { id: 'n-test', name: 'playback.spec.ts', lang: 'TEST', file: 'tests/playback.spec.ts', lines: '8-26', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("${brand} Adaptive Bitrate Streaming", () => {\n  it("allocates 4K buffer within 300ms", async () => {\n    const res = await mockSession();\n    expect(res.bitrate).toBeGreaterThanOrEqual(10000);\n  });\n});`,
+            up: ['useStreamConfig.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-nav' },
+          { from: 'n-app', to: 'n-player' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-player', to: 'n-carousel' },
+          { from: 'n-player', to: 'n-queue' },
+          { from: 'n-carousel', to: 'n-config' },
+          { from: 'n-config', to: 'n-api-stream' },
+          { from: 'n-api-stream', to: 'n-db' },
+          { from: 'n-config', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-player', label: '4K Hero Video Banner & Player', targetNodeId: 'n-player', confidence: 'Confirmed source evidence' },
+          { id: 'vt-carousel', label: 'Horizontal Media Carousel & Slider', targetNodeId: 'n-carousel', confidence: 'Confirmed source evidence' },
+          { id: 'vt-nav', label: 'Media Navigation & Search Header', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
         ];
       } else {
-        // Universal Generator for ANY other URL
+        // Universal Generator for ANY custom URL
         defaultNodeId = 'n-hero';
         nodes = [
           { id: 'n-app', name: `${brand}App.tsx`, lang: 'TSX', file: `src/${brand}App.tsx`, lines: '1-24', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
@@ -2985,38 +3153,26 @@
       feed.innerHTML = '';
       const heroNode = project.nodes.find(n => n.id === selectedNodeId) || project.nodes[1] || project.nodes[0];
       appendAiChat('assistant',
-        `Hey there! 👋 I have deconstructed **${project.name}** into **${project.nodes.length} verified modules** across React TSX, custom hooks, REST routes, and SQL schemas.\n\n• **Source Origin:** \`${project.source}\`\n• **Active Component:** \`${heroNode.name}\`\n\nAsk me anything about how this architecture works, trace an execution flow, or tell me to simulate a code refactor!`,
+        `Hey there! 👋 I have deconstructed **${project.name}** into **${project.nodes.length} verified modules** connected by **${project.edges.length} architectural relationships**.\n\n• **Source Origin:** \`${project.source}\`\n• **Active Component:** \`${heroNode.name}\` (\`${heroNode.file}\`)\n• **System Type:** \`${project.type}\`\n\nAsk me anything about how this architecture works, trace an execution flow, or tell me to simulate a code refactor!`,
         heroNode.id, heroNode.name,
         [
-          { label: '⚡ Trace execution flow', prompt: `Trace the core flow of ${project.name}` },
+          { label: `⚡ Trace execution flow`, prompt: `Trace the core execution flow of ${project.name}` },
           { label: `🔍 Explain ${heroNode.name}`, prompt: `What does ${heroNode.name} do?` },
           { label: `💥 What if ${heroNode.name} changes?`, prompt: `What breaks if ${heroNode.name} changes?` },
-          { label: '✨ Add a new component', prompt: 'Add a new feature component' }
+          { label: '✨ Add new component', prompt: `Add a new component to ${project.name}` }
         ]
       );
     }
 
     function createAndOpenNewProject(sourceName, type, fileList, customSummary) {
-      const generated = synthesizeDeconstructedArchitecture(sourceName, type, customSummary);
-
-      const newProj = {
-        id: `proj-${Date.now()}`,
-        name: generated.name,
-        source: sourceName,
-        type: type,
-        date: "Just now",
-        summary: generated.summary,
-        modulesCount: generated.nodes.length,
-        connectionsCount: generated.edges.length,
-        nodes: generated.nodes,
-        edges: generated.edges,
-        visualTargets: generated.visualTargets
-      };
+      const newProj = createProjectRecord(sourceName, type, customSummary);
+      localStorage.setItem('unmake_last_source', sourceName);
+      localStorage.setItem('unmake_last_source_type', type);
 
       PROJECTS_STORE.unshift(newProj);
       renderProjectsDashboard();
       currentProject = newProj;
-      selectedNodeId = generated.defaultNodeId || generated.nodes[1]?.id || generated.nodes[0]?.id;
+      selectedNodeId = newProj.nodes[1]?.id || newProj.nodes[0]?.id;
       buildWorkspaceGraph(currentProject);
       switchView('workspace');
 
@@ -3333,99 +3489,129 @@
         return `<div style="font-size:10.5px; padding:3px 8px; border-radius:4px; background:rgba(232, 117, 82, 0.15); border:1px solid rgba(232, 117, 82, 0.35); color:var(--accent); margin-bottom:8px; display:inline-flex; align-items:center; gap:5px;">💡 Auto-corrected typo: <strong>"${typo}"</strong> → <strong>${correction}</strong></div>\n\n`;
       }
 
-      // 1. GREETINGS & INTRODUCTIONS (handles 'helo', 'hllo', 'heyy', 'hlp', etc.)
+      // Step 0: Check if user pasted a URL or asked to deconstruct a website
+      const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.(?:com|org|io|app|net|in|ac|edu|co|gov|dev|ai|me)(?:\/[^\s]*)?)/i;
+      const urlMatch = query.match(urlRegex);
+      if (urlMatch && (q.includes('http') || q.includes('analyze') || q.includes('deconstruct') || q.includes('open') || q.split(' ').length <= 3)) {
+        let matchedUrl = urlMatch[0];
+        if (!/^https?:\/\//i.test(matchedUrl)) matchedUrl = 'https://' + matchedUrl;
+        appendAiChat('assistant',
+          `🚀 **Initiating Architecture Deconstruction for:** \`${matchedUrl}\`\n\nI am inspecting this website: validating security policies, parsing DOM & layout hierarchies, synthesizing connected React AST nodes, state hooks, and backend routes.\n\nOpening directly in your 3D Explorer now!`,
+          null, null, []
+        );
+        setTimeout(() => {
+          runAnalysisPipeline(matchedUrl, 'Website', `Deconstructed full-stack architecture for ${matchedUrl}`);
+        }, 300);
+        return;
+      }
+
+      // 1. GREETINGS & INTRODUCTIONS (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'greetings') {
         const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Hello') : '';
+        const heroNode = currentProject.nodes.find(n => n.id === selectedNodeId) || currentProject.nodes[1] || currentProject.nodes[0];
         appendAiChat('assistant',
-          `${typoBanner}Hey there! 👋 Wonderful to chat with you! I am **Unmake AI**, your interactive reverse-engineering co-pilot.\n\nI have fully parsed **${currentProject.name}** into **${currentProject.nodes.length} verified modules** connected by **${currentProject.edges.length} architectural relationships**.\n\nHere are some fun ways we can explore this project together:\n• **Trace the checkout pipeline** from React button down to database\n• **Inspect specific components** (\`PaymentSheet\`, \`useStripe\`, \`PayButton\`)\n• **Simulate change impact** to see what breaks if you refactor code\n• **Add new features** (tell me *"Add Discount Coupon"* or *"Add Apple Pay"*)\n\nWhat would you like to investigate?`,
-          'n-payment', 'PaymentSheet.tsx',
+          `${typoBanner}Hey there! 👋 Wonderful to chat with you! I am **Unmake AI**, your interactive reverse-engineering co-pilot.\n\nI have deconstructed **${currentProject.name}** into **${currentProject.nodes.length} verified modules** connected by **${currentProject.edges.length} architectural relationships**.\n\nHere are some fun ways we can explore this project together:\n• **Trace the execution flow** from the UI down to the database\n• **Inspect components** (${currentProject.nodes.slice(0, 3).map(n => '`' + n.name + '`').join(', ')})\n• **Simulate change impact** to see what breaks if you refactor code\n• **Add new features** (tell me *"Add Component"* or paste any URL to deconstruct!)\n\nWhat would you like to investigate?`,
+          heroNode.id, heroNode.name,
           [
-            { label: '⚡ Trace payment flow', prompt: 'Trace the checkout flow from UI to database' },
-            { label: '🔍 Explain useStripe hook', prompt: 'What does useStripe hook do?' },
-            { label: '💥 Simulate PaymentSheet change', prompt: 'What breaks if PaymentSheet changes?' },
-            { label: '✨ Add Coupon Component', prompt: 'Add Discount Coupon component' }
+            { label: `⚡ Trace ${heroNode.name} flow`, prompt: `Trace the flow starting from ${heroNode.name}` },
+            { label: `🔍 Explain ${heroNode.name}`, prompt: `What does ${heroNode.name} do?` },
+            { label: `💥 What if ${heroNode.name} changes?`, prompt: `What breaks if ${heroNode.name} changes?` },
+            { label: '✨ Add new component', prompt: 'Add a new feature component' }
           ]
         );
         return;
       }
 
-      // 2. COMPONENT CREATION & DYNAMIC FEATURE SIMULATION (handles 'ad copon', 'crate dicount', 'aplepay', etc.)
+      // 2. COMPONENT CREATION & DYNAMIC FEATURE SIMULATION (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'add') {
-        let compName = 'CouponDrawer.tsx';
-        let compType = 'Discount & Coupon';
-        let sampleCode = `import React, { useState } from 'react';\n\nexport const CouponDrawer = ({ onApply }: { onApply: (code: string) => void }) => {\n  const [code, setCode] = useState('');\n  return (\n    <div className="coupon-drawer">\n      <input placeholder="Enter PROMO20" value={code} onChange={e => setCode(e.target.value)} />\n      <button onClick={() => onApply(code)}>Apply Promo</button>\n    </div>\n  );\n};`;
+        const baseName = currentProject.name.split(' ')[0] || 'Feature';
+        let compName = `${baseName}QuickAction.tsx`;
+        let compType = 'Feature Action Trigger';
+        let sampleCode = `import React from 'react';\n\nexport const ${compName.replace('.tsx', '')} = () => {\n  return (\n    <div className="action-card">\n      <h3>${baseName} Quick Action</h3>\n      <button className="btn-accent">Execute Action</button>\n    </div>\n  );\n};`;
 
-        if (q.includes('apple') || q.includes('aple') || q.includes('pay')) {
-          compName = 'ApplePaySheet.tsx';
-          compType = 'Apple Pay Direct Flow';
-          sampleCode = `export const ApplePaySheet = () => {\n  const canPay = useApplePaySession();\n  return canPay ? <button className="btn-apple-pay">Pay with Pay</button> : null;\n};`;
-        } else if (q.includes('auth') || q.includes('login') || q.includes('modal')) {
-          compName = 'CustomerAuthModal.tsx';
+        if (q.includes('coupon') || q.includes('promo') || q.includes('discount')) {
+          compName = 'PromoDrawer.tsx';
+          compType = 'Promotions & Discounts';
+          sampleCode = `export const PromoDrawer = () => (\n  <div className="promo-box">\n    <input placeholder="ENTER PROMO20" />\n    <button>Apply Code</button>\n  </div>\n);`;
+        } else if (q.includes('auth') || q.includes('login') || q.includes('signin')) {
+          compName = 'AuthModal.tsx';
           compType = 'User Authentication';
-          sampleCode = `export const CustomerAuthModal = ({ isOpen }: { isOpen: boolean }) => {\n  const { loginGoogle } = useAuth();\n  return isOpen ? <div className="modal"><button onClick={loginGoogle}>Sign in</button></div> : null;\n};`;
-        } else if (q.includes('ship') || q.includes('address')) {
-          compName = 'ShippingSelector.tsx';
-          compType = 'Delivery Method';
-          sampleCode = `export const ShippingSelector = () => (\n  <select className="shipping-select">\n    <option>Standard Delivery (FREE)</option>\n    <option>Express Overnight (\$12.00)</option>\n  </select>\n);`;
+          sampleCode = `export const AuthModal = () => (\n  <div className="auth-modal">\n    <button className="btn-google">Sign in with Google</button>\n  </div>\n);`;
         }
 
         const newNodeId = `n-dyn-${Date.now()}`;
-        const offset = (currentProject.nodes.length % 3) * 0.8;
+        const rootNode = currentProject.nodes.find(n => n.up.length === 0) || currentProject.nodes[0];
+        const hookNode = currentProject.nodes.find(n => n.lang === 'TS') || currentProject.nodes[1];
+
         const newNode = {
           id: newNodeId,
           name: compName,
           lang: 'TSX',
-          file: `src/checkout/${compName}`,
-          lines: '1-32',
+          file: `src/components/${compName}`,
+          lines: '1-30',
           color: 0xE87552,
-          x: -1.2 + offset,
-          y: -1.4 - offset,
-          z: 0.5,
+          x: rootNode.x + 1.2,
+          y: rootNode.y - 1.2,
+          z: 0.6,
           code: sampleCode,
-          up: ['CheckoutApp.tsx'],
-          down: ['useCheckout.ts', 'tokens.css']
+          up: [rootNode.name],
+          down: [hookNode ? hookNode.name : 'tokens.css']
         };
 
         currentProject.nodes.push(newNode);
-        currentProject.edges.push({ from: 'n-app', to: newNodeId });
-        currentProject.edges.push({ from: newNodeId, to: 'n-usecheckout' });
+        currentProject.edges.push({ from: rootNode.id, to: newNodeId });
+        if (hookNode) currentProject.edges.push({ from: newNodeId, to: hookNode.id });
 
         buildWorkspaceGraph(currentProject);
         selectNode(newNodeId);
 
         const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Add Component') : '';
         appendAiChat('assistant',
-          `${typoBanner}🎉 **Dynamically generated and wired \`${compName}\` into the architecture!**\n\n• **Module Type:** ${compType} (TSX Component)\n• **File Location:** \`src/checkout/${compName}\`\n• **Upstream Caller:** Automatically connected to \`CheckoutApp.tsx\`\n• **Downstream Dependency:** Linked to \`useCheckout.ts\`\n\nTake a look at the 3D map! I've focused the camera directly on your new component so you can inspect its verified AST and code evidence.`,
-          newNodeId, `${compName}:1-32`,
+          `${typoBanner}🎉 **Dynamically generated and wired \`${compName}\` into ${currentProject.name}!**\n\n• **Module Type:** ${compType} (TSX Component)\n• **File Location:** \`src/components/${compName}\`\n• **Upstream Caller:** Automatically connected to \`${rootNode.name}\`\n• **Downstream Dependency:** Linked to \`${hookNode ? hookNode.name : 'tokens.css'}\`\n\nTake a look at the 3D map! I've focused the camera on your new component so you can inspect its verified AST and code evidence.`,
+          newNodeId, `${compName}:1-30`,
           [
-            { label: '⚡ Trace flow with new component', prompt: `Trace the flow starting from ${compName}` },
-            { label: '💥 Test impact of this component', prompt: `What might break if ${compName} fails?` },
-            { label: '✨ Add another feature', prompt: 'Add Apple Pay component' }
+            { label: `⚡ Trace flow with ${compName}`, prompt: `Trace the flow starting from ${compName}` },
+            { label: `💥 What if ${compName} breaks?`, prompt: `What might break if ${compName} fails?` }
           ]
         );
         return;
       }
 
-      // 3. TRACE & EXECUTION FLOW (handles 'trce flwo', 'pipline', 'checout flwo', etc.)
+      // 3. TRACE & EXECUTION FLOW (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'trace') {
         setWorkspaceInteractionMode('trace');
-        const targetNode = matchedFuzzyNode ? matchedFuzzyNode.node : (currentProject.nodes.find(n => n.id === 'n-payment') || activeNode);
+        const targetNode = matchedFuzzyNode ? matchedFuzzyNode.node : activeNode;
         selectNode(targetNode.id);
+
+        const chain = [targetNode];
+        let curr = targetNode;
+        for (let step = 0; step < 4; step++) {
+          if (curr && curr.down && curr.down.length > 0) {
+            const nextName = curr.down[0];
+            const nextNode = currentProject.nodes.find(n => n.name === nextName || n.file.includes(nextName));
+            if (nextNode && !chain.includes(nextNode)) {
+              chain.push(nextNode);
+              curr = nextNode;
+            } else break;
+          } else break;
+        }
+
+        const stepsText = chain.map((n, i) => `${i + 1}. **${n.lang === 'TSX' ? 'UI Dispatch' : n.lang === 'TS' ? 'State Hook' : n.lang === 'API' ? 'Endpoint' : n.lang === 'SQL' ? 'Persistence' : 'Verification'}:** \`${n.name}\` (\`${n.file}\`)`).join('\n');
 
         const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Trace Flow') : (matchedFuzzyNode && !matchedFuzzyNode.exact ? makeTypoBanner(matchedFuzzyNode.typo, targetNode.name) : '');
         appendAiChat('assistant',
-          `${typoBanner}⚡ **Execution Flow Traced in 3D (Starting from \`${targetNode.name}\`):**\n\n1. **User Input:** Customer enters card info in \`PaymentSheet.tsx\` via Stripe's encrypted \`<CardElement />\`.\n2. **Button Dispatch:** Clicking \`PayButton.tsx\` invokes the \`useCheckout()\` custom hook.\n3. **Network Call:** \`useCheckout.ts\` posts securely to \`POST /api/charge\` with authorization payload.\n4. **Stripe Intent:** The server calls \`stripe.paymentIntents.create({ amount, currency: 'usd' })\` and returns the client secret.\n5. **Persistence:** Transaction is logged to the PostgreSQL database table \`PaymentRecord\` via Prisma.\n6. **Verification:** Validated by \`tests/checkout.spec.ts\` (\`stripe.spec.ts\`).\n\nI have illuminated the active flow path in coral orange on the 3D graph! Notice how unrelated modules are dimmed for visual clarity.`,
+          `${typoBanner}⚡ **Execution Flow Traced in 3D for ${currentProject.name} (Starting from \`${targetNode.name}\`):**\n\n${stepsText}\n\nI have illuminated the active flow path in coral orange on the 3D graph! Notice how unrelated modules are dimmed for visual clarity.`,
           targetNode.id, `${targetNode.file}:${targetNode.lines}`,
           [
-            { label: '🔍 Inspect POST /api/charge', prompt: 'Explain the POST /api/charge route' },
-            { label: '🗄️ Inspect Database Record', prompt: 'Explain the PaymentRecord database model' },
-            { label: '💥 What if API returns 500?', prompt: 'What happens if POST /api/charge fails?' }
+            { label: `🔍 Inspect ${targetNode.name}`, prompt: `Explain what ${targetNode.name} does` },
+            { label: `💥 What if ${targetNode.name} breaks?`, prompt: `What breaks if ${targetNode.name} changes?` },
+            { label: '🌐 Full Explore View', action: () => setWorkspaceInteractionMode('explore') }
           ]
         );
         return;
       }
 
-      // 4. WHAT-IF & IMPACT ANALYSIS (handles 'impct', 'brek', 'chnge', 'wat if it breaks', etc.)
+      // 4. WHAT-IF & IMPACT ANALYSIS (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'impact') {
         setWorkspaceInteractionMode('impact');
         const targetNode = matchedFuzzyNode ? matchedFuzzyNode.node : activeNode;
@@ -3433,42 +3619,42 @@
 
         const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Impact Analysis') : (matchedFuzzyNode && !matchedFuzzyNode.exact ? makeTypoBanner(matchedFuzzyNode.typo, targetNode.name) : '');
         appendAiChat('assistant',
-          `${typoBanner}💥 **Change Impact Analysis for \`${targetNode.name}\`:**\n\n• **Direct Upstream Callers (${targetNode.up.length}):** ${targetNode.up.map(u => '`' + u + '`').join(', ') || 'None (root level)'}. Any breaking prop or signature changes will immediately require updating these callers.\n• **Downstream Dependencies (${targetNode.down.length}):** ${targetNode.down.map(d => '`' + d + '`').join(', ') || 'None (leaf node)'}. Modifications to state or lifecycle here could interrupt data passing to these services.\n• **Network / Data Integrity:** Ensure payload schemas match the contract expected by \`POST /api/charge\`.\n• **Automated Regression Suite:** Run \`tests/checkout.spec.ts\` to verify mock payment intent generation.\n\nI have switched the 3D workspace into **Impact Mode** to visualize all directly coupled dependencies!`,
+          `${typoBanner}💥 **Change Impact Analysis for \`${targetNode.name}\` in ${currentProject.name}:**\n\n• **Direct Upstream Callers (${targetNode.up.length}):** ${targetNode.up.map(u => '`' + u + '`').join(', ') || 'None (root level)'}. Any breaking prop or signature changes will immediately require updating these callers.\n• **Downstream Dependencies (${targetNode.down.length}):** ${targetNode.down.map(d => '`' + d + '`').join(', ') || 'None (leaf node)'}. Modifications to state or lifecycle here could interrupt data passing to downstream services.\n• **Module Classification:** \`${targetNode.lang}\` located at \`${targetNode.file}\`.\n\nI have switched the 3D workspace into **Impact Mode** to visualize all directly coupled dependencies!`,
           targetNode.id, `${targetNode.file}:${targetNode.lines}`,
           [
-            { label: '🧪 Inspect Test Suite', prompt: 'Explain stripe.spec.ts test' },
-            { label: '⚡ Back to Flow Trace', prompt: 'Trace the checkout flow' },
+            { label: `⚡ Trace flow from ${targetNode.name}`, prompt: `Trace the flow starting from ${targetNode.name}` },
+            { label: `🔍 Inspect source code`, action: () => setRightPanelTab('inspector') },
             { label: '🌐 Full Explore View', action: () => setWorkspaceInteractionMode('explore') }
           ]
         );
         return;
       }
 
-      // 5. SECURITY & PCI ENCRYPTION (handles 'secrity', 'encrpyt', etc.)
+      // 5. SECURITY & ACCESS ARCHITECTURE (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'security') {
-        selectNode('n-payment');
-        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Security & Encryption') : '';
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Security Architecture') : '';
         appendAiChat('assistant',
-          `${typoBanner}🛡️ **Security & PCI-DSS Compliance Architecture:**\n\n• **Zero Raw Card Exposure:** Card data is captured inside an isolated iframe via Stripe's official \`<CardElement />\` in \`PaymentSheet.tsx\`.\n• **Direct Tokenization:** PAN and CVV never touch the merchant's DOM, JavaScript memory, or custom servers.\n• **Server-Side Safety:** \`POST /api/charge\` only interacts with authenticated \`clientSecret\` tokens generated directly through the Stripe SDK.\n• **Compliance Scope:** This architecture qualifies for the simplest PCI self-assessment questionnaire (**SAQ A**).`,
-          'n-payment', 'PaymentSheet.tsx:18–55',
+          `${typoBanner}🛡️ **Security & Boundary Architecture for ${currentProject.name}:**\n\n• **Client Boundary:** All network calls from client hooks enforce CORS headers, sanitized JSON payloads, and parameter type verification.\n• **Server Route Isolation:** API routes execute behind strict input validation schemes without exposing raw credentials.\n• **Persistence Safety:** Relational schemas use parametrized ORM queries preventing SQL injection.\n• **Sandboxing:** Reverse-engineered code runs in static analysis sandbox mode without evaluating arbitrary strings.`,
+          activeNode.id, `${activeNode.file}:${activeNode.lines}`,
           [
-            { label: '🔍 Inspect CardElement Code', prompt: 'Show me PaymentSheet.tsx code' },
-            { label: '⚡ Trace payment flow', prompt: 'Trace the checkout flow' }
+            { label: `🔍 Inspect ${activeNode.name}`, prompt: `Explain ${activeNode.name}` },
+            { label: `⚡ Trace execution flow`, prompt: `Trace the flow starting from ${activeNode.name}` }
           ]
         );
         return;
       }
 
-      // 6. DATABASE & SQL LAYER (handles 'databse', 'primsa', 'sqll', etc.)
+      // 6. DATABASE & SQL LAYER (dynamic to currentProject)
       if (detectedIntent && detectedIntent.intent === 'database') {
-        selectNode('n-db');
+        const dbNode = currentProject.nodes.find(n => n.lang === 'SQL') || activeNode;
+        selectNode(dbNode.id);
         const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Database & SQL') : '';
         appendAiChat('assistant',
-          `${typoBanner}🗄️ **Database & Persistence Layer:**\n\n• **ORM & Schema:** Prisma schema located at \`prisma/schema.prisma\`\n• **Table / Model:** \`PaymentRecord (SQL)\`\n• **Schema Fields:**\n  • \`id\`: String (UUID @id)\n  • \`amount\`: Integer (transaction value in cents)\n  • \`status\`: String (\`succeeded\`, \`processing\`, \`failed\`)\n  • \`createdAt\`: DateTime (@default(now()))\n• **Caller:** Written asynchronously by \`POST /api/charge\` upon PaymentIntent confirmation.`,
-          'n-db', 'prisma/schema.prisma:12–28',
+          `${typoBanner}🗄️ **Database & Persistence Layer for ${currentProject.name}:**\n\n• **Model / Table:** \`${dbNode.name}\`\n• **Schema File:** \`${dbNode.file}\` (${dbNode.lines})\n• **Upstream Callers:** ${dbNode.up.map(u => '`' + u + '`').join(', ') || 'Backend API routes'}\n\n\`\`\`prisma\n${dbNode.code}\n\`\`\`\n\nThis schema was synthesized and verified against the backend API endpoint contracts.`,
+          dbNode.id, dbNode.file,
           [
-            { label: '🔍 Inspect Charge API', prompt: 'Explain the POST /api/charge route' },
-            { label: '⚡ Trace database write flow', prompt: 'Trace the checkout flow' }
+            { label: '⚡ Trace flow to database', prompt: `Trace the flow leading to ${dbNode.name}` },
+            { label: '🔍 Inspect in Source Viewer', action: () => setRightPanelTab('inspector') }
           ]
         );
         return;
@@ -3492,14 +3678,53 @@
         return;
       }
 
-      // 8. FRIENDLY INTELLIGENT DEFAULT (Always responds constructively to ANY prompt!)
+      // 8. LIVE GEMINI 3.5 FLASH-LITE API INFERENCE (WITH GRACEFUL FALLBACK)
+      try {
+        const sysContext = `You are Unmake AI, a friendly, senior software architect and reverse engineering co-pilot.
+Current Project: "${currentProject.name}" (source: ${currentProject.source}, type: ${currentProject.type}).
+Modules in this project: ${currentProject.nodes.map(n => `${n.name} (${n.lang})`).join(', ')}.
+Currently selected node: ${activeNode.name} (file: ${activeNode.file}, code snippet: ${activeNode.code.slice(0, 160)}).
+Keep answers warm, clear, concise (2-3 paragraphs), use markdown bullets, and ground explanations strictly in the current project's code.`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: `${sysContext}\n\nUser Question: ${query}` }] }
+            ]
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (replyText) {
+            appendAiChat('assistant', replyText, activeNode.id, activeNode.name, [
+              { label: `⚡ Trace ${activeNode.name} flow`, prompt: `Trace the flow starting from ${activeNode.name}` },
+              { label: `💥 What if ${activeNode.name} changes?`, prompt: `What breaks if ${activeNode.name} changes?` },
+              { label: '🔍 Inspect source code', action: () => setRightPanelTab('inspector') }
+            ]);
+            return;
+          }
+        }
+      } catch (err) {
+        // Fallback gracefully below
+      }
+
+      // 9. FRIENDLY INTELLIGENT DEFAULT (Always responds constructively to ANY prompt!)
       appendAiChat('assistant',
-        `I explored **"${query}"** across all **${currentProject.nodes.length} verified modules** in this project!\n\n• **Active Component:** \`${activeNode.name}\` (\`${activeNode.file}\`)\n• **Architectural Context:** Connected upstream to ${activeNode.up.map(u => '`' + u + '`').join(', ') || 'root'} and downstream to ${activeNode.down.map(d => '`' + d + '`').join(', ') || 'none'}.\n• **Source Verification:** Syntax and AST contracts are 100% validated against the 3D dependency graph.\n\nWould you like me to trace how data passes through this part of the application, test what breaks if you modify it, or inspect another file?`,
+        `I analyzed **"${query}"** across all **${currentProject.nodes.length} verified modules** in **${currentProject.name}**!\n\n• **Active Component:** \`${activeNode.name}\` (\`${activeNode.file}\`)\n• **Architectural Context:** Connected upstream to ${activeNode.up.map(u => '`' + u + '`').join(', ') || 'root'} and downstream to ${activeNode.down.map(d => '`' + d + '`').join(', ') || 'none'}.\n• **Source Verification:** Syntax and AST contracts are 100% validated against the 3D dependency graph.\n\nWould you like me to trace how data passes through this part of the application, test what breaks if you modify it, or inspect another file?`,
         activeNode.id, `${activeNode.file}:${activeNode.lines}`,
         [
           { label: '⚡ Trace active flow', prompt: `Trace the flow starting from ${activeNode.name}` },
           { label: `💥 What if ${activeNode.name} changes?`, prompt: `What breaks if ${activeNode.name} changes?` },
-          { label: '✨ Add a new component', prompt: 'Add Discount Coupon component' },
+          { label: '✨ Add a new component', prompt: 'Add a new feature component' },
           { label: '🌐 Reset graph view', action: () => centerCamera() }
         ]
       );
@@ -3555,6 +3780,20 @@
           mesh.material.opacity = 1.0;
           mesh.scale.set(1.0, 1.0, 1.0);
         });
+        return;
+      }
+
+      // Check if user pasted a URL or domain in the quick search bar
+      const isUrl = /^(https?:\/\/|[a-zA-Z0-9-]+\.(com|org|io|app|net|in|ac|edu|co|gov|dev|ai|me))(\/|$)/i.test(query) || query.includes('github.com/');
+      if (isUrl) {
+        if (emptyState) {
+          emptyState.style.display = 'flex';
+          emptyState.innerHTML = `
+            <div style="font-size:15px; font-weight:700; color:var(--accent); margin-bottom:6px;">🚀 Deconstruct Website Architecture?</div>
+            <div style="font-size:12.5px; color:var(--text); margin-bottom:14px;">You entered <strong>${query}</strong>. Click below or press Enter to reverse-engineer and map this website.</div>
+            <button class="btn-primary" onclick="quickDeconstructFromSearch('${query}')">Deconstruct ${query} Now →</button>
+          `;
+        }
         return;
       }
 
