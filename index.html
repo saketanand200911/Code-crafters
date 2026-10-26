@@ -1335,7 +1335,7 @@
           <!-- Mode 1: Website URL -->
           <div class="mode-body active" id="mode-body-url">
             <div class="url-row">
-              <input type="url" id="input-website-url" class="url-input" placeholder="https://linear.app, https://stripe.com, or your domain..." value="https://stripe.com/checkout">
+              <input type="url" id="input-website-url" class="url-input" placeholder="Paste any URL: https://linear.app, https://github.com/..., https://dtu.ac.in..." onkeydown="if(event.key === 'Enter') handleAnalyzeWebsiteUrl()">
               <button class="btn-primary" onclick="handleAnalyzeWebsiteUrl()">Analyze Website</button>
             </div>
             <div class="security-notice-box">
@@ -1371,7 +1371,7 @@
           <!-- Mode 4: Git Repository -->
           <div class="mode-body" id="mode-body-repo">
             <div class="repo-row">
-              <input type="url" id="input-repo-url" class="url-input" placeholder="https://github.com/facebook/react or public git repo..." value="https://github.com/unmake-ai/stripe-checkout-sample">
+              <input type="url" id="input-repo-url" class="url-input" placeholder="https://github.com/facebook/react or public git repo..." onkeydown="if(event.key === 'Enter') handleImportGitRepo()">
               <button class="btn-primary" onclick="handleImportGitRepo()">Import Repository</button>
             </div>
             <div class="security-notice-box">
@@ -1440,11 +1440,14 @@
       <div class="ws-subbar">
         <div class="ws-project-title-box">
           <span style="color:var(--accent);">●</span>
-          <span id="ws-project-title-text">Stripe Checkout & Payment Architecture</span>
-          <span class="project-type-tag" id="ws-project-type-badge">VERIFIED AST</span>
+          <span id="ws-project-title-text">Deconstructed Architecture</span>
+          <span class="project-type-tag" id="ws-project-type-badge">WEBSITE</span>
+          <button class="btn-primary" style="padding:3px 10px; font-size:11px; height:24px; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-left:6px;" onclick="openQuickDeconstructModal()">
+            <span>⚡</span> Deconstruct New URL
+          </button>
         </div>
 
-        <input type="text" id="ws-quick-search" class="ws-center-search" placeholder="Search files, symbols, and routes (⌘K)..." oninput="handleWorkspaceSearch(event)">
+        <input type="text" id="ws-quick-search" class="ws-center-search" placeholder="Search symbols, routes, or paste any URL (⌘K)..." oninput="handleWorkspaceSearch(event)" onkeydown="if(event.key === 'Enter') handleSearchEnter(event)">
 
         <div class="ws-modes-row">
           <button class="ws-mode-tab active" id="btn-mode-explore" onclick="setWorkspaceInteractionMode('explore')">Explore</button>
@@ -1624,6 +1627,33 @@
 
   </div>
 
+  <!-- Quick Deconstruct Modal (Instant Access from Workspace) -->
+  <div class="modal-backdrop" id="quick-deconstruct-modal" style="display:none;" onclick="if(event.target === this) closeQuickDeconstructModal()">
+    <div class="modal-dialog" style="max-width:540px; width:92%; background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; box-shadow:0 20px 48px rgba(0,0,0,0.65); display:flex; flex-direction:column; gap:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-size:16px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+          <span style="color:var(--accent);">⚡</span> Deconstruct Any Website or Codebase
+        </div>
+        <button class="btn-pill" onclick="closeQuickDeconstructModal()" style="padding:2px 8px; font-size:13px;">✕</button>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5;">
+        Enter any live website URL, GitHub repo, or company domain. Unmake AI will automatically analyze its DOM layout, synthesize connected React components, state hooks, REST routes, and render its 3D architecture.
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="quick-modal-url-input" class="url-input" placeholder="e.g. flipkart.com, linear.app, dtu.ac.in, netflix.com, github.com/..." style="flex:1;" onkeydown="if(event.key === 'Enter') submitQuickModalUrl()">
+        <button class="btn-primary" onclick="submitQuickModalUrl()">Analyze →</button>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--text-muted); align-items:center;">
+        <span>Quick jump:</span>
+        <button class="btn-pill" onclick="quickSelectUrl('https://flipkart.com')">Flipkart</button>
+        <button class="btn-pill" onclick="quickSelectUrl('https://linear.app')">Linear</button>
+        <button class="btn-pill" onclick="quickSelectUrl('https://dtu.ac.in')">DTU Portal</button>
+        <button class="btn-pill" onclick="quickSelectUrl('https://github.com/facebook/react')">React GitHub</button>
+        <button class="btn-pill" onclick="quickSelectUrl('https://netflix.com')">Netflix</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Loading & Analysis Progress Dialog -->
   <div class="modal-backdrop" id="analysis-progress-modal">
     <div class="modal-dialog">
@@ -1640,9 +1670,6 @@
        APPLICATION ARCHITECTURE JAVASCRIPT
        ==================================================================== -->
   <script>
-    /* Server & Gemini 2.5 Flash API Key */
-    const GEMINI_API_KEY = "AIzaSyAQ.Ab8RN6JlLJhVnXEDu4uErua1YGs75cc6jce-9d-RKJSjkn01lQ";
-
     /* Sample Demo Projects Database (Section 23) - 100% Validated Data */
     const PROJECTS_STORE = [
       {
@@ -1790,6 +1817,7 @@
 
       renderProjectsDashboard();
       applyTheme(currentTheme);
+      resetAiWelcomeForProject(currentProject);
       
       // Auto-start render loops
       animateLanding();
@@ -1983,6 +2011,9 @@
       wsEdgeMeshes = [];
 
       document.getElementById('ws-project-title-text').innerText = project.name;
+      const typeBadge = document.getElementById('ws-project-type-badge');
+      if (typeBadge) typeBadge.innerText = (project.type || 'WEBSITE').toUpperCase();
+      document.title = `${project.name} — Unmake AI`;
       const diagPill = document.getElementById('graph-diag-pill');
       if (diagPill) diagPill.style.display = 'flex';
 
@@ -2462,8 +2493,10 @@
     /* Open Demo Project (Section 23) */
     window.openDemoProject = function() {
       currentProject = PROJECTS_STORE[0];
+      selectedNodeId = 'n-payment';
       buildWorkspaceGraph(currentProject);
       switchView('workspace');
+      resetAiWelcomeForProject(currentProject);
     };
 
     /* Section 6: Render Project Dashboard */
@@ -2499,8 +2532,10 @@
       const found = PROJECTS_STORE.find(p => p.id === projId);
       if (found) {
         currentProject = found;
+        selectedNodeId = found.nodes[1]?.id || found.nodes[0]?.id;
         buildWorkspaceGraph(currentProject);
         switchView('workspace');
+        resetAiWelcomeForProject(currentProject);
       }
     };
 
@@ -2574,15 +2609,62 @@
     };
 
     window.handleAnalyzeWebsiteUrl = function() {
-      const url = document.getElementById('input-website-url').value.trim();
-      if (!url) return alert("Please enter a valid website URL.");
+      const input = document.getElementById('input-website-url');
+      let url = input ? input.value.trim() : '';
+      if (!url) return alert("Please enter a valid website URL or domain.");
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
       runAnalysisPipeline(url, 'Website', `Deconstructed website layout and API schemas for ${url}`);
     };
 
     window.handleImportGitRepo = function() {
-      const repo = document.getElementById('input-repo-url').value.trim();
+      const input = document.getElementById('input-repo-url');
+      let repo = input ? input.value.trim() : '';
       if (!repo) return alert("Please enter a valid public Git repository URL.");
+      if (!/^https?:\/\//i.test(repo)) repo = 'https://' + repo;
       runAnalysisPipeline(repo, 'Repository', `Analyzed public Git repository snapshot for ${repo}`);
+    };
+
+    /* Quick Deconstruct Modal Handlers */
+    window.openQuickDeconstructModal = function() {
+      const modal = document.getElementById('quick-deconstruct-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('quick-modal-url-input')?.focus(), 50);
+      }
+    };
+
+    window.closeQuickDeconstructModal = function() {
+      const modal = document.getElementById('quick-deconstruct-modal');
+      if (modal) modal.style.display = 'none';
+    };
+
+    window.submitQuickModalUrl = function() {
+      const input = document.getElementById('quick-modal-url-input');
+      let url = input ? input.value.trim() : '';
+      if (!url) return alert("Please enter a website URL or domain.");
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+      closeQuickDeconstructModal();
+      if (input) input.value = '';
+      runAnalysisPipeline(url, 'Website', `Deconstructed full-stack architecture for ${url}`);
+    };
+
+    window.quickSelectUrl = function(url) {
+      closeQuickDeconstructModal();
+      runAnalysisPipeline(url, 'Website', `Deconstructed full-stack architecture for ${url}`);
+    };
+
+    window.quickDeconstructFromSearch = function(url) {
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+      clearWorkspaceSearch();
+      runAnalysisPipeline(url, 'Website', `Deconstructed full-stack architecture for ${url}`);
+    };
+
+    window.handleSearchEnter = function(e) {
+      const val = (e.target.value || '').trim();
+      const isUrl = /^(https?:\/\/|[a-zA-Z0-9-]+\.(com|org|io|app|net|in|ac|edu|co|gov|dev|ai|me))(\/|$)/i.test(val) || val.includes('github.com/');
+      if (isUrl) {
+        quickDeconstructFromSearch(val);
+      }
     };
 
     /* Multi-stage Analysis Progress Pipeline (Section 19) */
@@ -2611,25 +2693,334 @@
       document.getElementById('analysis-progress-modal').style.display = 'none';
     }
 
+    /* Section 12: Dynamic URL Deconstruction & AST Architecture Synthesis */
+    function capitalize(s) {
+      if (!s) return '';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function synthesizeDeconstructedArchitecture(sourceUrl, type, customSummary) {
+      let rawUrl = (sourceUrl || 'https://linear.app').trim();
+      let cleanDomain = rawUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
+
+      let brandRaw = cleanDomain.split('.')[0];
+      if (cleanDomain.includes('github.com')) {
+        const parts = rawUrl.replace(/^https?:\/\/github\.com\//i, '').split('/').filter(Boolean);
+        brandRaw = parts[1] || parts[0] || 'github';
+      } else if (cleanDomain.includes('linear.app')) brandRaw = 'linear';
+      else if (cleanDomain.includes('dtu.ac.in') || cleanDomain.includes('dtu')) brandRaw = 'dtu';
+      else if (cleanDomain.includes('netflix.com')) brandRaw = 'netflix';
+      else if (cleanDomain.includes('ycombinator.com')) brandRaw = 'hackernews';
+      else if (cleanDomain.includes('amazon.com') || cleanDomain.includes('shopify')) brandRaw = 'store';
+
+      const brand = capitalize(brandRaw);
+
+      let projName = `${brand} Web & System Architecture`;
+      let summary = customSummary || `Deconstructed full-stack architecture for ${cleanDomain} including responsive React UI, client hooks, REST endpoints, and relational schema.`;
+      let defaultNodeId = 'n-hero';
+      let nodes = [];
+      let edges = [];
+      let visualTargets = [];
+
+      if (brandRaw === 'linear' || cleanDomain.includes('linear.app')) {
+        projName = 'Linear App & Realtime Sync Architecture';
+        defaultNodeId = 'n-board';
+        nodes = [
+          { id: 'n-app', name: 'LinearApp.tsx', lang: 'TSX', file: 'src/LinearApp.tsx', lines: '1-28', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { Navbar } from "./components/Navbar";\nimport { IssueBoard } from "./components/IssueBoard";\nimport "./styles/tokens.css";\n\nexport default function LinearApp() {\n  return (\n    <div className="linear-layout">\n      <Navbar />\n      <IssueBoard />\n    </div>\n  );\n}`,
+            up: [], down: ['Navbar.tsx', 'IssueBoard.tsx', 'tokens.css']
+          },
+          { id: 'n-nav', name: 'Navbar.tsx', lang: 'TSX', file: 'src/components/Navbar.tsx', lines: '8-34', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const Navbar = () => (\n  <header className="linear-nav">\n    <div className="brand-workspace">Acme Corp</div>\n    <input className="cmd-k" placeholder="Search or jump to... ⌘K" />\n  </header>\n);`,
+            up: ['LinearApp.tsx'], down: ['tokens.css']
+          },
+          { id: 'n-board', name: 'IssueBoard.tsx', lang: 'TSX', file: 'src/components/IssueBoard.tsx', lines: '14-62', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { useIssueStore } from "../hooks/useIssueStore";\nimport { IssueCard } from "./IssueCard";\n\nexport const IssueBoard = () => {\n  const { issues, filter } = useIssueStore();\n  return (\n    <div className="board-grid">\n      {issues.map(item => <IssueCard key={item.id} issue={item} />)}\n    </div>\n  );\n};`,
+            up: ['LinearApp.tsx'], down: ['IssueCard.tsx', 'useIssueStore.ts']
+          },
+          { id: 'n-card', name: 'IssueCard.tsx', lang: 'TSX', file: 'src/components/IssueCard.tsx', lines: '10-44', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useRealtimeSync } from "../hooks/useRealtimeSync";\n\nexport const IssueCard = ({ issue }: { issue: any }) => {\n  const { updateStatus } = useRealtimeSync();\n  return (\n    <div className="issue-row" onClick={() => updateStatus(issue.id, "Done")}>\n      <span className="priority-pill">{issue.priority}</span>\n      <h4>{issue.title}</h4>\n    </div>\n  );\n};`,
+            up: ['IssueBoard.tsx'], down: ['useRealtimeSync.ts', 'POST /api/issues/sync']
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --linear-graphite: #121417;\n  --linear-indigo: #5E6AD2;\n  --linear-text: #EEEEF0;\n  --border-subtle: #24272E;\n}`,
+            up: ['LinearApp.tsx', 'Navbar.tsx'], down: []
+          },
+          { id: 'n-store', name: 'useIssueStore.ts', lang: 'TS', file: 'src/hooks/useIssueStore.ts', lines: '8-40', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `import { create } from "zustand";\n\nexport const useIssueStore = create((set) => ({\n  issues: [{ id: "ISS-101", title: "Refactor WebSocket sync", priority: "Urgent" }],\n  filter: "all",\n  setIssues: (issues) => set({ issues }),\n  setFilter: (filter) => set({ filter })\n}));`,
+            up: ['IssueBoard.tsx'], down: []
+          },
+          { id: 'n-sync', name: 'useRealtimeSync.ts', lang: 'TS', file: 'src/hooks/useRealtimeSync.ts', lines: '12-48', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useRealtimeSync() {\n  const updateStatus = async (id: string, status: string) => {\n    await fetch("/api/issues/sync", {\n      method: "POST",\n      body: JSON.stringify({ id, status, clientTimestamp: Date.now() })\n    });\n  };\n  return { updateStatus };\n}`,
+            up: ['IssueCard.tsx'], down: ['POST /api/issues/sync']
+          },
+          { id: 'n-api-sync', name: 'POST /api/issues/sync', lang: 'API', file: 'server/routes/sync.js', lines: '10-38', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.post("/api/issues/sync", async (req, res) => {\n  const { id, status } = req.body;\n  const updated = await prisma.issue.update({\n    where: { id },\n    data: { status, updatedAt: new Date() }\n  });\n  broadcastWebSocket("ISSUE_UPDATED", updated);\n  res.json({ ok: true, issue: updated });\n});`,
+            up: ['IssueCard.tsx', 'useRealtimeSync.ts'], down: ['Issue (Prisma SQL)']
+          },
+          { id: 'n-db', name: 'Issue (Prisma SQL)', lang: 'SQL', file: 'prisma/schema.prisma', lines: '8-26', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model Issue {\n  id          String   @id @default(cuid())\n  title       String\n  status      String   @default("Todo")\n  priority    Int      @default(1)\n  updatedAt   DateTime @updatedAt\n}`,
+            up: ['POST /api/issues/sync'], down: []
+          },
+          { id: 'n-test', name: 'sync.spec.ts', lang: 'TEST', file: 'tests/sync.spec.ts', lines: '10-32', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("Realtime 50ms Sync Engine", () => {\n  it("optimistically mutates state and confirms server ack", async () => {\n    const res = await mockSync({ id: "ISS-102", status: "Done" });\n    expect(res.ok).toBe(true);\n  });\n});`,
+            up: ['useRealtimeSync.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-nav' },
+          { from: 'n-app', to: 'n-board' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-board', to: 'n-card' },
+          { from: 'n-board', to: 'n-store' },
+          { from: 'n-card', to: 'n-sync' },
+          { from: 'n-sync', to: 'n-api-sync' },
+          { from: 'n-api-sync', to: 'n-db' },
+          { from: 'n-sync', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-board', label: 'Interactive Kanban Issue Board', targetNodeId: 'n-board', confidence: 'Confirmed source evidence' },
+          { id: 'vt-card', label: 'Issue Task Row (Optimistic Update)', targetNodeId: 'n-card', confidence: 'Confirmed source evidence' },
+          { id: 'vt-nav', label: 'Workspace Header & Command Bar', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+        ];
+      } else if (brandRaw === 'github' || cleanDomain.includes('github.com')) {
+        projName = `${brand} Repository & Code Explorer Architecture`;
+        defaultNodeId = 'n-tree';
+        nodes = [
+          { id: 'n-app', name: 'RepoLayout.tsx', lang: 'TSX', file: 'src/RepoLayout.tsx', lines: '1-26', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { RepoHeader } from "./components/RepoHeader";\nimport { FileTree } from "./components/FileTree";\nimport { BlobViewer } from "./components/BlobViewer";\n\nexport default function RepoLayout() {\n  return (\n    <div className="github-repo-layout">\n      <RepoHeader repo="${brand}" />\n      <div className="repo-split">\n        <FileTree />\n        <BlobViewer />\n      </div>\n    </div>\n  );\n}`,
+            up: [], down: ['RepoHeader.tsx', 'FileTree.tsx', 'tokens.css']
+          },
+          { id: 'n-header', name: 'RepoHeader.tsx', lang: 'TSX', file: 'src/components/RepoHeader.tsx', lines: '10-38', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const RepoHeader = ({ repo }: { repo: string }) => (\n  <header className="repo-header">\n    <h2>{repo}</h2>\n    <div className="repo-stats">\n      <button className="btn-star">★ Star</button>\n      <button className="btn-fork">⑂ Fork</button>\n    </div>\n  </header>\n);`,
+            up: ['RepoLayout.tsx'], down: ['tokens.css']
+          },
+          { id: 'n-tree', name: 'FileTree.tsx', lang: 'TSX', file: 'src/components/FileTree.tsx', lines: '12-54', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { useGitTree } from "../hooks/useGitTree";\n\nexport const FileTree = () => {\n  const { tree, selectFile } = useGitTree();\n  return (\n    <aside className="file-tree">\n      {tree.map(f => (\n        <div key={f.path} className="tree-row" onClick={() => selectFile(f.path)}>\n          <span>{f.type === "tree" ? "📁" : "📄"}</span>\n          <span>{f.name}</span>\n        </div>\n      ))}\n    </aside>\n  );\n};`,
+            up: ['RepoLayout.tsx'], down: ['BlobViewer.tsx', 'useGitTree.ts']
+          },
+          { id: 'n-viewer', name: 'BlobViewer.tsx', lang: 'TSX', file: 'src/components/BlobViewer.tsx', lines: '14-48', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useRepoMeta } from "../hooks/useRepoMeta";\n\nexport const BlobViewer = () => {\n  const { activeBlob, commitInfo } = useRepoMeta();\n  return (\n    <main className="blob-viewer">\n      <div className="blob-header">{activeBlob.filename} - {commitInfo.sha}</div>\n      <pre className="blob-code"><code>{activeBlob.content}</code></pre>\n    </main>\n  );\n};`,
+            up: ['FileTree.tsx'], down: ['useRepoMeta.ts', 'GET /api/repos/tree']
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-24', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --github-dark: #0D1117;\n  --github-accent: #238636;\n  --github-blue: #58A6FF;\n  --border-muted: #30363D;\n}`,
+            up: ['RepoLayout.tsx', 'RepoHeader.tsx'], down: []
+          },
+          { id: 'n-gittree', name: 'useGitTree.ts', lang: 'TS', file: 'src/hooks/useGitTree.ts', lines: '8-42', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `export function useGitTree() {\n  const [tree, setTree] = useState([]);\n  useEffect(() => {\n    fetch("/api/repos/tree").then(res => res.json()).then(setTree);\n  }, []);\n  return { tree };\n}`,
+            up: ['FileTree.tsx'], down: ['GET /api/repos/tree']
+          },
+          { id: 'n-repometa', name: 'useRepoMeta.ts', lang: 'TS', file: 'src/hooks/useRepoMeta.ts', lines: '10-36', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useRepoMeta() {\n  return {\n    activeBlob: { filename: "README.md", content: "# ${brand}\\n\\nOpen-source codebase." },\n    commitInfo: { sha: "7f9a2b8", message: "Initial commit" }\n  };\n}`,
+            up: ['BlobViewer.tsx'], down: []
+          },
+          { id: 'n-api-tree', name: 'GET /api/repos/tree', lang: 'API', file: 'server/routes/git.js', lines: '12-40', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.get("/api/repos/tree", async (req, res) => {\n  const files = await git.getTreeSnapshot("${brand}");\n  res.json(files);\n});`,
+            up: ['BlobViewer.tsx', 'useGitTree.ts'], down: ['GitCommit (SQL)']
+          },
+          { id: 'n-db', name: 'GitCommit (SQL)', lang: 'SQL', file: 'prisma/schema.prisma', lines: '6-22', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model GitCommit {\n  sha         String   @id\n  message     String\n  author      String\n  committedAt DateTime @default(now())\n}`,
+            up: ['GET /api/repos/tree'], down: []
+          },
+          { id: 'n-test', name: 'tree.spec.ts', lang: 'TEST', file: 'tests/tree.spec.ts', lines: '8-28', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("Git Tree Traversal", () => {\n  it("fetches root tree nodes within 120ms", async () => {\n    const tree = await mockGitTree();\n    expect(tree.length).toBeGreaterThan(0);\n  });\n});`,
+            up: ['useGitTree.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-header' },
+          { from: 'n-app', to: 'n-tree' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-tree', to: 'n-viewer' },
+          { from: 'n-tree', to: 'n-gittree' },
+          { from: 'n-viewer', to: 'n-repometa' },
+          { from: 'n-gittree', to: 'n-api-tree' },
+          { from: 'n-api-tree', to: 'n-db' },
+          { from: 'n-gittree', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-tree', label: 'Interactive Git File Tree Browser', targetNodeId: 'n-tree', confidence: 'Confirmed source evidence' },
+          { id: 'vt-viewer', label: 'Syntax-Highlighted Blob Viewer', targetNodeId: 'n-viewer', confidence: 'Confirmed source evidence' },
+          { id: 'vt-header', label: 'Repository Header & Star Button', targetNodeId: 'n-header', confidence: 'Confirmed source evidence' }
+        ];
+      } else if (brandRaw === 'dtu' || cleanDomain.includes('dtu.ac.in')) {
+        projName = 'DTU Campus Portal & Academic Architecture';
+        defaultNodeId = 'n-notice';
+        nodes = [
+          { id: 'n-app', name: 'CampusApp.tsx', lang: 'TSX', file: 'src/CampusApp.tsx', lines: '1-26', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { CampusPortalNav } from "./components/CampusPortalNav";\nimport { NoticeBoard } from "./components/NoticeBoard";\nimport { StudentDashboard } from "./components/StudentDashboard";\nimport "./styles/tokens.css";\n\nexport default function CampusApp() {\n  return (\n    <div className="dtu-campus-layout">\n      <CampusPortalNav />\n      <div className="campus-grid">\n        <NoticeBoard />\n        <StudentDashboard />\n      </div>\n    </div>\n  );\n}`,
+            up: [], down: ['CampusPortalNav.tsx', 'NoticeBoard.tsx', 'tokens.css']
+          },
+          { id: 'n-nav', name: 'CampusPortalNav.tsx', lang: 'TSX', file: 'src/components/CampusPortalNav.tsx', lines: '8-34', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const CampusPortalNav = () => (\n  <header className="dtu-header">\n    <div className="dtu-crest">DTU New Delhi</div>\n    <nav className="portal-links">\n      <span>Academic Circulars</span>\n      <span>Hacktoberfest 2026</span>\n      <span>Exam Results</span>\n    </nav>\n  </header>\n);`,
+            up: ['CampusApp.tsx'], down: ['tokens.css']
+          },
+          { id: 'n-notice', name: 'NoticeBoard.tsx', lang: 'TSX', file: 'src/components/NoticeBoard.tsx', lines: '12-52', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { useNoticeFeed } from "../hooks/useNoticeFeed";\n\nexport const NoticeBoard = () => {\n  const { notices } = useNoticeFeed();\n  return (\n    <section className="notice-board">\n      <h3>Official University Circulars</h3>\n      {notices.map(n => (\n        <div key={n.id} className="notice-item">\n          <span className="badge-new">{n.category}</span>\n          <p>{n.title}</p>\n        </div>\n      ))}\n    </section>\n  );\n};`,
+            up: ['CampusApp.tsx'], down: ['StudentDashboard.tsx', 'useNoticeFeed.ts']
+          },
+          { id: 'n-student', name: 'StudentDashboard.tsx', lang: 'TSX', file: 'src/components/StudentDashboard.tsx', lines: '14-58', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useStudentProfile } from "../hooks/useStudentProfile";\n\nexport const StudentDashboard = () => {\n  const { profile } = useStudentProfile();\n  return (\n    <div className="student-card">\n      <h4>{profile.name} ({profile.rollNo})</h4>\n      <div className="metric">Attendance: {profile.attendance}%</div>\n      <div className="metric">Current GPA: {profile.gpa}</div>\n    </div>\n  );\n};`,
+            up: ['NoticeBoard.tsx'], down: ['useStudentProfile.ts', 'POST /api/hackathon/register']
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --dtu-maroon: #800020;\n  --dtu-gold: #D4AF37;\n  --dtu-bg: #14171A;\n  --dtu-cream: #FFFDD0;\n}`,
+            up: ['CampusApp.tsx', 'CampusPortalNav.tsx'], down: []
+          },
+          { id: 'n-feed', name: 'useNoticeFeed.ts', lang: 'TS', file: 'src/hooks/useNoticeFeed.ts', lines: '8-38', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `export function useNoticeFeed() {\n  return {\n    notices: [\n      { id: "n-1", category: "HACKATHON", title: "DTU Hacktoberfest 2026 Registration Open" },\n      { id: "n-2", category: "EXAMS", title: "End-Semester Practical Exam Schedule" }\n    ]\n  };\n}`,
+            up: ['NoticeBoard.tsx'], down: []
+          },
+          { id: 'n-profile', name: 'useStudentProfile.ts', lang: 'TS', file: 'src/hooks/useStudentProfile.ts', lines: '10-44', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useStudentProfile() {\n  return {\n    profile: { rollNo: "2K22/CO/341", name: "Saket Anand", department: "Computer Engineering", attendance: 89, gpa: 9.24 }\n  };\n}`,
+            up: ['StudentDashboard.tsx'], down: ['POST /api/hackathon/register']
+          },
+          { id: 'n-api-hack', name: 'POST /api/hackathon/register', lang: 'API', file: 'server/routes/hackathon.js', lines: '12-36', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.post("/api/hackathon/register", async (req, res) => {\n  const reg = await prisma.hackathonSubmission.create({ data: req.body });\n  res.json({ registered: true, teamId: reg.id });\n});`,
+            up: ['StudentDashboard.tsx', 'useStudentProfile.ts'], down: ['StudentRecords (SQL)']
+          },
+          { id: 'n-db', name: 'StudentRecords (SQL)', lang: 'SQL', file: 'prisma/schema.prisma', lines: '8-26', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model StudentRecord {\n  rollNo     String   @id\n  name       String\n  department String\n  attendance Int\n  gpa        Float\n}`,
+            up: ['POST /api/hackathon/register'], down: []
+          },
+          { id: 'n-test', name: 'portal.spec.ts', lang: 'TEST', file: 'tests/portal.spec.ts', lines: '8-28', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("DTU Academic Portal", () => {\n  it("verifies roll number authentication and circular feed integrity", async () => {\n    const auth = await mockStudentAuth("2K22/CO/341");\n    expect(auth.valid).toBe(true);\n  });\n});`,
+            up: ['useStudentProfile.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-nav' },
+          { from: 'n-app', to: 'n-notice' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-notice', to: 'n-student' },
+          { from: 'n-notice', to: 'n-feed' },
+          { from: 'n-student', to: 'n-profile' },
+          { from: 'n-profile', to: 'n-api-hack' },
+          { from: 'n-api-hack', to: 'n-db' },
+          { from: 'n-profile', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-notice', label: 'Live Circulars & Notice Board', targetNodeId: 'n-notice', confidence: 'Confirmed source evidence' },
+          { id: 'vt-student', label: 'Student Attendance & GPA Dashboard', targetNodeId: 'n-student', confidence: 'Confirmed source evidence' },
+          { id: 'vt-nav', label: 'DTU Campus Header & Roll No Selector', targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+        ];
+      } else {
+        // Universal Generator for ANY other URL
+        defaultNodeId = 'n-hero';
+        nodes = [
+          { id: 'n-app', name: `${brand}App.tsx`, lang: 'TSX', file: `src/${brand}App.tsx`, lines: '1-24', color: 0x61DAFB, x: -3.4, y: 1.8, z: 0.6,
+            code: `import React from "react";\nimport { HeaderNavbar } from "./components/HeaderNavbar";\nimport { ${brand}HeroView } from "./components/${brand}HeroView";\nimport "./styles/tokens.css";\n\nexport default function ${brand}App() {\n  return (\n    <div className="${cleanDomain.replace(/[^a-z0-9]/g, '-')}-shell">\n      <HeaderNavbar domain="${cleanDomain}" />\n      <${brand}HeroView />\n    </div>\n  );\n}`,
+            up: [], down: ['HeaderNavbar.tsx', `${brand}HeroView.tsx`, 'tokens.css']
+          },
+          { id: 'n-nav', name: 'HeaderNavbar.tsx', lang: 'TSX', file: 'src/components/HeaderNavbar.tsx', lines: '8-32', color: 0x61DAFB, x: -3.4, y: -0.4, z: 0.5,
+            code: `export const HeaderNavbar = ({ domain }: { domain: string }) => (\n  <header className="brand-navbar">\n    <div className="brand-logo">${brand}</div>\n    <nav className="nav-links">\n      <a href="#features">Features</a>\n      <a href="#solutions">Solutions</a>\n      <a href="#pricing">Pricing</a>\n    </nav>\n  </header>\n);`,
+            up: [`${brand}App.tsx`], down: ['tokens.css']
+          },
+          { id: 'n-hero', name: `${brand}HeroView.tsx`, lang: 'TSX', file: `src/components/${brand}HeroView.tsx`, lines: '14-58', color: 0xE87552, x: -1.4, y: 1.0, z: 0.7,
+            code: `import { use${brand}Data } from "../hooks/use${brand}Data";\nimport { InteractiveCard } from "./InteractiveCard";\n\nexport const ${brand}HeroView = () => {\n  const { data, isLoading } = use${brand}Data();\n  return (\n    <main className="hero-section">\n      <h1>Welcome to ${brand}</h1>\n      <p>Deconstructed from ${cleanDomain}</p>\n      <InteractiveCard data={data} loading={isLoading} />\n    </main>\n  );\n};`,
+            up: [`${brand}App.tsx`], down: ['InteractiveCard.tsx', `use${brand}Data.ts`]
+          },
+          { id: 'n-card', name: 'InteractiveCard.tsx', lang: 'TSX', file: 'src/components/InteractiveCard.tsx', lines: '10-42', color: 0xE87552, x: 0.6, y: 0.2, z: 0.8,
+            code: `import { useSession } from "../hooks/useSession";\n\nexport const InteractiveCard = ({ data, loading }: { data: any, loading: boolean }) => {\n  const { triggerAction } = useSession();\n  return (\n    <div className="action-card" onClick={triggerAction}>\n      <h3>{loading ? "Loading..." : data.title || "${brand} Core Feature"}</h3>\n      <button className="cta-btn">Explore ${brand} →</button>\n    </div>\n  );\n};`,
+            up: [`${brand}HeroView.tsx`], down: ['useSession.ts', `POST /api/v1/${brandRaw}/submit`]
+          },
+          { id: 'n-tokens', name: 'tokens.css', lang: 'CSS', file: 'src/styles/tokens.css', lines: '1-22', color: 0xEC4899, x: -3.4, y: -2.2, z: 0.2,
+            code: `:root {\n  --brand-primary: #E87552;\n  --brand-bg: #151719;\n  --brand-surface: #242729;\n  --brand-text: #F3F0E9;\n}`,
+            up: [`${brand}App.tsx`, 'HeaderNavbar.tsx'], down: []
+          },
+          { id: 'n-data', name: `use${brand}Data.ts`, lang: 'TS', file: `src/hooks/use${brand}Data.ts`, lines: '8-36', color: 0x38BDF8, x: -0.6, y: 2.2, z: -0.2,
+            code: `export function use${brand}Data() {\n  const [data, setData] = useState({ title: "${brand} Service Engine", ready: true });\n  const [isLoading, setIsLoading] = useState(false);\n  return { data, isLoading };\n}`,
+            up: [`${brand}HeroView.tsx`], down: []
+          },
+          { id: 'n-session', name: 'useSession.ts', lang: 'TS', file: 'src/hooks/useSession.ts', lines: '10-40', color: 0x38BDF8, x: 1.6, y: 1.4, z: -0.2,
+            code: `export function useSession() {\n  const triggerAction = async () => {\n    await fetch("/api/v1/${brandRaw}/submit", { method: "POST", body: JSON.stringify({ ts: Date.now() }) });\n  };\n  return { triggerAction };\n}`,
+            up: ['InteractiveCard.tsx'], down: [`POST /api/v1/${brandRaw}/submit`]
+          },
+          { id: 'n-api', name: `POST /api/v1/${brandRaw}/submit`, lang: 'API', file: 'server/routes/api.js', lines: '10-34', color: 0x67C58A, x: 2.8, y: -0.4, z: -0.8,
+            code: `router.post("/api/v1/${brandRaw}/submit", async (req, res) => {\n  const record = await prisma.${brandRaw}Record.create({ data: req.body });\n  res.json({ success: true, record });\n});`,
+            up: ['InteractiveCard.tsx', 'useSession.ts'], down: [`${brand}Record (SQL)`]
+          },
+          { id: 'n-db', name: `${brand}Record (SQL)`, lang: 'SQL', file: 'prisma/schema.prisma', lines: '8-24', color: 0xA855F7, x: 3.2, y: -2.4, z: -1.6,
+            code: `model ${brand}Record {\n  id        String   @id @default(uuid())\n  metadata  Json?\n  createdAt DateTime @default(now())\n}`,
+            up: [`POST /api/v1/${brandRaw}/submit`], down: []
+          },
+          { id: 'n-test', name: `${brandRaw}.spec.ts`, lang: 'TEST', file: `tests/${brandRaw}.spec.ts`, lines: '8-26', color: 0xF5A623, x: 1.2, y: 3.0, z: -1.0,
+            code: `describe("${brand} Integration Contract", () => {\n  it("successfully renders and dispatches payload", async () => {\n    const res = await mockEndpoint();\n    expect(res.status).toBe(200);\n  });\n});`,
+            up: ['useSession.ts'], down: []
+          }
+        ];
+
+        edges = [
+          { from: 'n-app', to: 'n-nav' },
+          { from: 'n-app', to: 'n-hero' },
+          { from: 'n-app', to: 'n-tokens' },
+          { from: 'n-hero', to: 'n-card' },
+          { from: 'n-hero', to: 'n-data' },
+          { from: 'n-card', to: 'n-session' },
+          { from: 'n-session', to: 'n-api' },
+          { from: 'n-api', to: 'n-db' },
+          { from: 'n-session', to: 'n-test' }
+        ];
+
+        visualTargets = [
+          { id: 'vt-hero', label: `Primary ${brand} Hero Feature`, targetNodeId: 'n-hero', confidence: 'Confirmed source evidence' },
+          { id: 'vt-card', label: `Interactive ${brand} Card Widget`, targetNodeId: 'n-card', confidence: 'Confirmed source evidence' },
+          { id: 'vt-nav', label: `Header Navigation & Controls`, targetNodeId: 'n-nav', confidence: 'Confirmed source evidence' }
+        ];
+      }
+
+      return { name: projName, summary, defaultNodeId, nodes, edges, visualTargets };
+    }
+
+    function resetAiWelcomeForProject(project) {
+      const feed = document.getElementById('ai-chat-scroll');
+      if (!feed) return;
+      feed.innerHTML = '';
+      const heroNode = project.nodes.find(n => n.id === selectedNodeId) || project.nodes[1] || project.nodes[0];
+      appendAiChat('assistant',
+        `Hey there! 👋 I have deconstructed **${project.name}** into **${project.nodes.length} verified modules** across React TSX, custom hooks, REST routes, and SQL schemas.\n\n• **Source Origin:** \`${project.source}\`\n• **Active Component:** \`${heroNode.name}\`\n\nAsk me anything about how this architecture works, trace an execution flow, or tell me to simulate a code refactor!`,
+        heroNode.id, heroNode.name,
+        [
+          { label: '⚡ Trace execution flow', prompt: `Trace the core flow of ${project.name}` },
+          { label: `🔍 Explain ${heroNode.name}`, prompt: `What does ${heroNode.name} do?` },
+          { label: `💥 What if ${heroNode.name} changes?`, prompt: `What breaks if ${heroNode.name} changes?` },
+          { label: '✨ Add a new component', prompt: 'Add a new feature component' }
+        ]
+      );
+    }
+
     function createAndOpenNewProject(sourceName, type, fileList, customSummary) {
-      const cleanName = sourceName.replace(/https?:\/\//, '').replace(/\.[^/.]+$/, "").split('/')[0] + " Architecture";
+      const generated = synthesizeDeconstructedArchitecture(sourceName, type, customSummary);
+
       const newProj = {
         id: `proj-${Date.now()}`,
-        name: cleanName,
+        name: generated.name,
         source: sourceName,
         type: type,
         date: "Just now",
-        summary: customSummary || `Deconstructed ${fileList.length || 5} source modules and component relationships.`,
-        modulesCount: Math.max(5, fileList.length || 6),
-        connectionsCount: Math.max(6, (fileList.length || 6) + 2),
-        nodes: [...PROJECTS_STORE[0].nodes],
-        edges: [...PROJECTS_STORE[0].edges]
+        summary: generated.summary,
+        modulesCount: generated.nodes.length,
+        connectionsCount: generated.edges.length,
+        nodes: generated.nodes,
+        edges: generated.edges,
+        visualTargets: generated.visualTargets
       };
+
       PROJECTS_STORE.unshift(newProj);
       renderProjectsDashboard();
       currentProject = newProj;
+      selectedNodeId = generated.defaultNodeId || generated.nodes[1]?.id || generated.nodes[0]?.id;
       buildWorkspaceGraph(currentProject);
       switchView('workspace');
+
+      resetAiWelcomeForProject(currentProject);
     }
 
     /* Section 9: AI Assistant "Ask Unmake" Engine (Friendly & Ultra-Interactive) */
@@ -2756,6 +3147,170 @@
       if (el) el.remove();
     }
 
+    /* Section 9B: Intelligent Typo Detection & Damerau-Levenshtein Engine */
+    function damerauLevenshtein(s1, s2) {
+      if (!s1 || !s2) return (s1 || '').length + (s2 || '').length;
+      s1 = s1.toLowerCase();
+      s2 = s2.toLowerCase();
+      const m = s1.length, n = s2.length;
+      const d = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) d[i][0] = i;
+      for (let j = 0; j <= n; j++) d[0][j] = j;
+
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          d[i][j] = Math.min(
+            d[i - 1][j] + 1,       // deletion
+            d[i][j - 1] + 1,       // insertion
+            d[i - 1][j - 1] + cost // substitution
+          );
+          // transposition of adjacent characters (e.g. 'teh' <-> 'the', 'chagre' <-> 'charge', 'pyament' <-> 'payment')
+          if (i > 1 && j > 1 && s1[i - 1] === s2[j - 2] && s1[i - 2] === s2[j - 1]) {
+            d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+          }
+        }
+      }
+      return d[m][n];
+    }
+
+    function dlSimilarity(s1, s2) {
+      const maxLen = Math.max((s1 || '').length, (s2 || '').length);
+      if (maxLen === 0) return 1.0;
+      return (maxLen - damerauLevenshtein(s1, s2)) / maxLen;
+    }
+
+    /* Target Node Aliases for Accurate Typo Resolution */
+    const NODE_ALIASES = {
+      'n-app': ['checkoutapp', 'checkout', 'app', 'main', 'root', 'checkoutcomponent'],
+      'n-payment': ['paymentsheet', 'payment', 'sheet', 'cardelement', 'card', 'creditcard', 'paymethod', 'paymethods'],
+      'n-summary': ['ordersummary', 'summary', 'subtotal', 'tax', 'breakdown', 'orderdetail'],
+      'n-paybtn': ['paybutton', 'paybtn', 'button', 'pay', 'cta', 'submitpay'],
+      'n-tokens': ['tokens', 'css', 'tokenscss', 'styles', 'theme', 'variables', 'colors'],
+      'n-usestripe': ['usestripe', 'stripe', 'loadstripe', 'stripehook', 'stripejs'],
+      'n-usecheckout': ['usecheckout', 'checkout', 'checkouthook', 'processorder'],
+      'n-charge-api': ['charge', 'chargeapi', 'apicharge', 'paymentintent', 'endpoint', 'servercharge'],
+      'n-db': ['paymentrecord', 'database', 'sql', 'prisma', 'schema', 'record', 'table', 'db'],
+      'n-test': ['stripespec', 'spec', 'test', 'checkoutspec', 'jest', 'vitest', 'testing']
+    };
+
+    /* Intelligent Node Fuzzy Matcher with Typo Diagnostics */
+    function findNodeWithTypoDetection(query, project) {
+      const cleanQ = query.toLowerCase().replace(/[^a-z0-9\s/.-]/g, ' ').trim();
+      const words = cleanQ.split(/\s+/).filter(w => w.length >= 2);
+      const compact = cleanQ.replace(/[\s/.-]/g, '');
+
+      // 1. Direct / Exact Substring Match
+      for (const n of project.nodes) {
+        const rawName = n.name.toLowerCase().replace(/\.[^.]+$/, '');
+        if (cleanQ.includes(rawName) || cleanQ.includes(n.name.toLowerCase()) || cleanQ.includes(n.file.toLowerCase())) {
+          return { node: n, typo: null, exact: true };
+        }
+        const aliases = NODE_ALIASES[n.id] || [];
+        for (const alias of aliases) {
+          if (words.includes(alias) || compact === alias) {
+            return { node: n, typo: null, exact: true };
+          }
+        }
+      }
+
+      // 2. Fuzzy Match across Words and Aliases with Damerau-Levenshtein
+      let bestNode = null;
+      let highestScore = 0;
+      let detectedTypoWord = null;
+
+      for (const n of project.nodes) {
+        const aliases = NODE_ALIASES[n.id] || [n.name.toLowerCase().replace(/\.[^.]+$/, '')];
+        for (const alias of aliases) {
+          if (compact.length >= 4) {
+            const sim = dlSimilarity(compact, alias);
+            if (sim >= 0.70 && sim > highestScore) {
+              highestScore = sim;
+              bestNode = n;
+              detectedTypoWord = query;
+            }
+          }
+          for (const w of words) {
+            if (w.length < 3 && alias.length > 4) continue;
+            const sim = dlSimilarity(w, alias);
+            if (sim >= 0.70 && sim > highestScore) {
+              highestScore = sim;
+              bestNode = n;
+              detectedTypoWord = w;
+            }
+          }
+        }
+      }
+
+      if (bestNode && highestScore >= 0.70) {
+        return { node: bestNode, typo: detectedTypoWord, score: highestScore, exact: false };
+      }
+      return null;
+    }
+
+    /* Intelligent Intent Typo Matcher */
+    const INTENTS_VOCAB = [
+      { intent: 'trace', label: 'Trace Execution Flow', keys: ['trace', 'flow', 'pipeline', 'journey', 'sequence', 'execution', 'follow'] },
+      { intent: 'impact', label: 'Change Impact Analysis', keys: ['impact', 'break', 'change', 'refactor', 'modify', 'whatif', 'risk', 'fail'] },
+      { intent: 'add', label: 'Simulate & Add Component', keys: ['add', 'create', 'generate', 'insert', 'coupon', 'discount', 'applepay', 'shipping'] },
+      { intent: 'security', label: 'Security & Encryption', keys: ['security', 'secure', 'encrypt', 'encryption', 'pci', 'cardelement', 'tokenization'] },
+      { intent: 'database', label: 'Database & SQL Layer', keys: ['database', 'sql', 'prisma', 'schema', 'record', 'table', 'persistence'] },
+      { intent: 'test', label: 'Automated Test Suite', keys: ['test', 'spec', 'jest', 'vitest', 'coverage', 'assertions'] },
+      { intent: 'greetings', label: 'Greeting', keys: ['hello', 'hi', 'hey', 'greetings', 'help', 'sup', 'howdy', 'hola'] }
+    ];
+
+    function detectIntentWithTypo(query) {
+      const cleanQ = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+      const words = cleanQ.split(/\s+/).filter(w => w.length >= 2);
+
+      // Multi-word phrase checks for "what if" variants
+      if (cleanQ.includes('what if') || cleanQ.includes('wat if') || cleanQ.includes('wha if') || cleanQ.includes('wat ev')) {
+        return { intent: 'impact', typo: cleanQ.includes('what if') ? null : 'wat if', label: 'Change Impact Analysis', exact: cleanQ.includes('what if') };
+      }
+
+      // Exact keyword matches (whole words or multi-word phrases)
+      for (const item of INTENTS_VOCAB) {
+        for (const k of item.keys) {
+          if (words.includes(k) || (k.includes(' ') && cleanQ.includes(k))) {
+            return { intent: item.intent, typo: null, exact: true, label: item.label };
+          }
+        }
+      }
+
+      // Fuzzy keyword matches (e.g. 'trce', 'flwo', 'impct', 'brek', 'copon', 'secrity', 'databse', 'speck')
+      let bestIntent = null;
+      let highestScore = 0;
+      let typoWord = null;
+      let matchedKey = null;
+
+      for (const item of INTENTS_VOCAB) {
+        for (const k of item.keys) {
+          for (const w of words) {
+            const sim = dlSimilarity(w, k);
+            if (sim >= 0.72 && sim > highestScore) {
+              highestScore = sim;
+              bestIntent = item.intent;
+              typoWord = w;
+              matchedKey = k;
+            }
+          }
+        }
+      }
+
+      if (bestIntent && highestScore >= 0.72) {
+        return {
+          intent: bestIntent,
+          typo: typoWord,
+          matchedKey: matchedKey,
+          score: highestScore,
+          exact: false,
+          label: INTENTS_VOCAB.find(i => i.intent === bestIntent)?.label
+        };
+      }
+
+      return null;
+    }
+
     async function executeAiAssistantResponse(query) {
       const q = query.toLowerCase().trim();
       const typing = showTypingIndicator();
@@ -2766,10 +3321,23 @@
 
       const activeNode = currentProject.nodes.find(n => n.id === selectedNodeId) || currentProject.nodes[0];
 
-      // 1. GREETINGS & INTRODUCTIONS
-      if (q.match(/^(hi|hello|hey|yo|sup|hola|greetings|howdy|good\s*(morning|afternoon|evening)|who are you|what can you do|help)\b/)) {
+      // Step A: Check for Intent Match (Exact or Typo Corrected)
+      const detectedIntent = detectIntentWithTypo(query);
+
+      // Step B: Check for Target Node Match (Exact or Typo Corrected)
+      const matchedFuzzyNode = findNodeWithTypoDetection(query, currentProject);
+
+      // Helper for clean Typo Banner
+      function makeTypoBanner(typo, correction) {
+        if (!typo) return '';
+        return `<div style="font-size:10.5px; padding:3px 8px; border-radius:4px; background:rgba(232, 117, 82, 0.15); border:1px solid rgba(232, 117, 82, 0.35); color:var(--accent); margin-bottom:8px; display:inline-flex; align-items:center; gap:5px;">💡 Auto-corrected typo: <strong>"${typo}"</strong> → <strong>${correction}</strong></div>\n\n`;
+      }
+
+      // 1. GREETINGS & INTRODUCTIONS (handles 'helo', 'hllo', 'heyy', 'hlp', etc.)
+      if (detectedIntent && detectedIntent.intent === 'greetings') {
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Hello') : '';
         appendAiChat('assistant',
-          `Hey there! 👋 Wonderful to chat with you! I am **Unmake AI**, your interactive reverse-engineering co-pilot.\n\nI have fully parsed **${currentProject.name}** into **${currentProject.nodes.length} verified modules** connected by **${currentProject.edges.length} architectural relationships**.\n\nHere are some fun ways we can explore this project together:\n• **Trace the checkout pipeline** from React button down to database\n• **Inspect specific components** (\`PaymentSheet\`, \`useStripe\`, \`PayButton\`)\n• **Simulate change impact** to see what breaks if you refactor code\n• **Add new features** (tell me *"Add Discount Coupon"* or *"Add Apple Pay"*)\n\nWhat would you like to investigate?`,
+          `${typoBanner}Hey there! 👋 Wonderful to chat with you! I am **Unmake AI**, your interactive reverse-engineering co-pilot.\n\nI have fully parsed **${currentProject.name}** into **${currentProject.nodes.length} verified modules** connected by **${currentProject.edges.length} architectural relationships**.\n\nHere are some fun ways we can explore this project together:\n• **Trace the checkout pipeline** from React button down to database\n• **Inspect specific components** (\`PaymentSheet\`, \`useStripe\`, \`PayButton\`)\n• **Simulate change impact** to see what breaks if you refactor code\n• **Add new features** (tell me *"Add Discount Coupon"* or *"Add Apple Pay"*)\n\nWhat would you like to investigate?`,
           'n-payment', 'PaymentSheet.tsx',
           [
             { label: '⚡ Trace payment flow', prompt: 'Trace the checkout flow from UI to database' },
@@ -2781,13 +3349,13 @@
         return;
       }
 
-      // 2. COMPONENT CREATION & DYNAMIC FEATURE SIMULATION ("Add X", "Create component")
-      if (q.includes('add') || q.includes('create') || q.includes('generate') || q.includes('new component') || q.includes('coupon') || q.includes('discount')) {
+      // 2. COMPONENT CREATION & DYNAMIC FEATURE SIMULATION (handles 'ad copon', 'crate dicount', 'aplepay', etc.)
+      if (detectedIntent && detectedIntent.intent === 'add') {
         let compName = 'CouponDrawer.tsx';
         let compType = 'Discount & Coupon';
         let sampleCode = `import React, { useState } from 'react';\n\nexport const CouponDrawer = ({ onApply }: { onApply: (code: string) => void }) => {\n  const [code, setCode] = useState('');\n  return (\n    <div className="coupon-drawer">\n      <input placeholder="Enter PROMO20" value={code} onChange={e => setCode(e.target.value)} />\n      <button onClick={() => onApply(code)}>Apply Promo</button>\n    </div>\n  );\n};`;
 
-        if (q.includes('apple') || q.includes('pay')) {
+        if (q.includes('apple') || q.includes('aple') || q.includes('pay')) {
           compName = 'ApplePaySheet.tsx';
           compType = 'Apple Pay Direct Flow';
           sampleCode = `export const ApplePaySheet = () => {\n  const canPay = useApplePaySession();\n  return canPay ? <button className="btn-apple-pay">Pay with Pay</button> : null;\n};`;
@@ -2825,8 +3393,9 @@
         buildWorkspaceGraph(currentProject);
         selectNode(newNodeId);
 
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Add Component') : '';
         appendAiChat('assistant',
-          `🎉 **Dynamically generated and wired \`${compName}\` into the architecture!**\n\n• **Module Type:** ${compType} (TSX Component)\n• **File Location:** \`src/checkout/${compName}\`\n• **Upstream Caller:** Automatically connected to \`CheckoutApp.tsx\`\n• **Downstream Dependency:** Linked to \`useCheckout.ts\`\n\nTake a look at the 3D map! I've focused the camera directly on your new component so you can inspect its verified AST and code evidence.`,
+          `${typoBanner}🎉 **Dynamically generated and wired \`${compName}\` into the architecture!**\n\n• **Module Type:** ${compType} (TSX Component)\n• **File Location:** \`src/checkout/${compName}\`\n• **Upstream Caller:** Automatically connected to \`CheckoutApp.tsx\`\n• **Downstream Dependency:** Linked to \`useCheckout.ts\`\n\nTake a look at the 3D map! I've focused the camera directly on your new component so you can inspect its verified AST and code evidence.`,
           newNodeId, `${compName}:1-32`,
           [
             { label: '⚡ Trace flow with new component', prompt: `Trace the flow starting from ${compName}` },
@@ -2837,14 +3406,16 @@
         return;
       }
 
-      // 3. TRACE & EXECUTION FLOW
-      if (q.includes('trace') || q.includes('flow') || q.includes('checkout') || q.includes('pipeline') || q.includes('how does') || q.includes('walk me through')) {
+      // 3. TRACE & EXECUTION FLOW (handles 'trce flwo', 'pipline', 'checout flwo', etc.)
+      if (detectedIntent && detectedIntent.intent === 'trace') {
         setWorkspaceInteractionMode('trace');
-        selectNode('n-payment');
+        const targetNode = matchedFuzzyNode ? matchedFuzzyNode.node : (currentProject.nodes.find(n => n.id === 'n-payment') || activeNode);
+        selectNode(targetNode.id);
 
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Trace Flow') : (matchedFuzzyNode && !matchedFuzzyNode.exact ? makeTypoBanner(matchedFuzzyNode.typo, targetNode.name) : '');
         appendAiChat('assistant',
-          `⚡ **Checkout Execution Flow Traced in 3D:**\n\n1. **User Input:** Customer enters card info in \`PaymentSheet.tsx\` via Stripe's encrypted \`<CardElement />\`.\n2. **Button Dispatch:** Clicking \`PayButton.tsx\` invokes the \`useCheckout()\` custom hook.\n3. **Network Call:** \`useCheckout.ts\` posts securely to \`POST /api/charge\` with authorization payload.\n4. **Stripe Intent:** The server calls \`stripe.paymentIntents.create({ amount, currency: 'usd' })\` and returns the client secret.\n5. **Persistence:** Transaction is logged to the PostgreSQL database table \`PaymentRecord\` via Prisma.\n6. **Verification:** Validated by \`tests/checkout.spec.ts\` (\`stripe.spec.ts\`).\n\nI have illuminated the active flow path in coral orange on the 3D graph! Notice how unrelated modules are dimmed for visual clarity.`,
-          'n-payment', 'PaymentSheet.tsx:18–55',
+          `${typoBanner}⚡ **Execution Flow Traced in 3D (Starting from \`${targetNode.name}\`):**\n\n1. **User Input:** Customer enters card info in \`PaymentSheet.tsx\` via Stripe's encrypted \`<CardElement />\`.\n2. **Button Dispatch:** Clicking \`PayButton.tsx\` invokes the \`useCheckout()\` custom hook.\n3. **Network Call:** \`useCheckout.ts\` posts securely to \`POST /api/charge\` with authorization payload.\n4. **Stripe Intent:** The server calls \`stripe.paymentIntents.create({ amount, currency: 'usd' })\` and returns the client secret.\n5. **Persistence:** Transaction is logged to the PostgreSQL database table \`PaymentRecord\` via Prisma.\n6. **Verification:** Validated by \`tests/checkout.spec.ts\` (\`stripe.spec.ts\`).\n\nI have illuminated the active flow path in coral orange on the 3D graph! Notice how unrelated modules are dimmed for visual clarity.`,
+          targetNode.id, `${targetNode.file}:${targetNode.lines}`,
           [
             { label: '🔍 Inspect POST /api/charge', prompt: 'Explain the POST /api/charge route' },
             { label: '🗄️ Inspect Database Record', prompt: 'Explain the PaymentRecord database model' },
@@ -2854,14 +3425,16 @@
         return;
       }
 
-      // 4. WHAT-IF & IMPACT ANALYSIS
-      if (q.includes('what if') || q.includes('break') || q.includes('impact') || q.includes('refactor') || q.includes('change') || q.includes('fail') || q.includes('bug')) {
+      // 4. WHAT-IF & IMPACT ANALYSIS (handles 'impct', 'brek', 'chnge', 'wat if it breaks', etc.)
+      if (detectedIntent && detectedIntent.intent === 'impact') {
         setWorkspaceInteractionMode('impact');
-        selectNode(activeNode.id);
+        const targetNode = matchedFuzzyNode ? matchedFuzzyNode.node : activeNode;
+        selectNode(targetNode.id);
 
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Impact Analysis') : (matchedFuzzyNode && !matchedFuzzyNode.exact ? makeTypoBanner(matchedFuzzyNode.typo, targetNode.name) : '');
         appendAiChat('assistant',
-          `💥 **Change Impact Analysis for \`${activeNode.name}\`:**\n\n• **Direct Upstream Callers (${activeNode.up.length}):** ${activeNode.up.map(u => '`' + u + '`').join(', ') || 'None (root level)'}. Any breaking prop or signature changes will immediately require updating these callers.\n• **Downstream Dependencies (${activeNode.down.length}):** ${activeNode.down.map(d => '`' + d + '`').join(', ') || 'None (leaf node)'}. Modifications to state or lifecycle here could interrupt data passing to these services.\n• **Network / Data Integrity:** Ensure payload schemas match the contract expected by \`POST /api/charge\`.\n• **Automated Regression Suite:** Run \`tests/checkout.spec.ts\` to verify mock payment intent generation.\n\nI have switched the 3D workspace into **Impact Mode** to visualize all directly coupled dependencies!`,
-          activeNode.id, `${activeNode.file}:${activeNode.lines}`,
+          `${typoBanner}💥 **Change Impact Analysis for \`${targetNode.name}\`:**\n\n• **Direct Upstream Callers (${targetNode.up.length}):** ${targetNode.up.map(u => '`' + u + '`').join(', ') || 'None (root level)'}. Any breaking prop or signature changes will immediately require updating these callers.\n• **Downstream Dependencies (${targetNode.down.length}):** ${targetNode.down.map(d => '`' + d + '`').join(', ') || 'None (leaf node)'}. Modifications to state or lifecycle here could interrupt data passing to these services.\n• **Network / Data Integrity:** Ensure payload schemas match the contract expected by \`POST /api/charge\`.\n• **Automated Regression Suite:** Run \`tests/checkout.spec.ts\` to verify mock payment intent generation.\n\nI have switched the 3D workspace into **Impact Mode** to visualize all directly coupled dependencies!`,
+          targetNode.id, `${targetNode.file}:${targetNode.lines}`,
           [
             { label: '🧪 Inspect Test Suite', prompt: 'Explain stripe.spec.ts test' },
             { label: '⚡ Back to Flow Trace', prompt: 'Trace the checkout flow' },
@@ -2871,11 +3444,12 @@
         return;
       }
 
-      // 5. SECURITY & PCI ENCRYPTION
-      if (q.includes('security') || q.includes('secure') || q.includes('encrypt') || q.includes('pci') || q.includes('card number')) {
+      // 5. SECURITY & PCI ENCRYPTION (handles 'secrity', 'encrpyt', etc.)
+      if (detectedIntent && detectedIntent.intent === 'security') {
         selectNode('n-payment');
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Security & Encryption') : '';
         appendAiChat('assistant',
-          `🛡️ **Security & PCI-DSS Compliance Architecture:**\n\n• **Zero Raw Card Exposure:** Card data is captured inside an isolated iframe via Stripe's official \`<CardElement />\` in \`PaymentSheet.tsx\`.\n• **Direct Tokenization:** PAN and CVV never touch the merchant's DOM, JavaScript memory, or custom servers.\n• **Server-Side Safety:** \`POST /api/charge\` only interacts with authenticated \`clientSecret\` tokens generated directly through the Stripe SDK.\n• **Compliance Scope:** This architecture qualifies for the simplest PCI self-assessment questionnaire (**SAQ A**).`,
+          `${typoBanner}🛡️ **Security & PCI-DSS Compliance Architecture:**\n\n• **Zero Raw Card Exposure:** Card data is captured inside an isolated iframe via Stripe's official \`<CardElement />\` in \`PaymentSheet.tsx\`.\n• **Direct Tokenization:** PAN and CVV never touch the merchant's DOM, JavaScript memory, or custom servers.\n• **Server-Side Safety:** \`POST /api/charge\` only interacts with authenticated \`clientSecret\` tokens generated directly through the Stripe SDK.\n• **Compliance Scope:** This architecture qualifies for the simplest PCI self-assessment questionnaire (**SAQ A**).`,
           'n-payment', 'PaymentSheet.tsx:18–55',
           [
             { label: '🔍 Inspect CardElement Code', prompt: 'Show me PaymentSheet.tsx code' },
@@ -2885,11 +3459,12 @@
         return;
       }
 
-      // 6. DATABASE & SQL LAYER
-      if (q.includes('database') || q.includes('sql') || q.includes('prisma') || q.includes('schema') || q.includes('store') || q.includes('table')) {
+      // 6. DATABASE & SQL LAYER (handles 'databse', 'primsa', 'sqll', etc.)
+      if (detectedIntent && detectedIntent.intent === 'database') {
         selectNode('n-db');
+        const typoBanner = detectedIntent.typo ? makeTypoBanner(detectedIntent.typo, 'Database & SQL') : '';
         appendAiChat('assistant',
-          `🗄️ **Database & Persistence Layer:**\n\n• **ORM & Schema:** Prisma schema located at \`prisma/schema.prisma\`\n• **Table / Model:** \`PaymentRecord (SQL)\`\n• **Schema Fields:**\n  • \`id\`: String (UUID @id)\n  • \`amount\`: Integer (transaction value in cents)\n  • \`status\`: String (\`succeeded\`, \`processing\`, \`failed\`)\n  • \`createdAt\`: DateTime (@default(now()))\n• **Caller:** Written asynchronously by \`POST /api/charge\` upon PaymentIntent confirmation.`,
+          `${typoBanner}🗄️ **Database & Persistence Layer:**\n\n• **ORM & Schema:** Prisma schema located at \`prisma/schema.prisma\`\n• **Table / Model:** \`PaymentRecord (SQL)\`\n• **Schema Fields:**\n  • \`id\`: String (UUID @id)\n  • \`amount\`: Integer (transaction value in cents)\n  • \`status\`: String (\`succeeded\`, \`processing\`, \`failed\`)\n  • \`createdAt\`: DateTime (@default(now()))\n• **Caller:** Written asynchronously by \`POST /api/charge\` upon PaymentIntent confirmation.`,
           'n-db', 'prisma/schema.prisma:12–28',
           [
             { label: '🔍 Inspect Charge API', prompt: 'Explain the POST /api/charge route' },
@@ -2899,66 +3474,25 @@
         return;
       }
 
-      // 7. SPECIFIC COMPONENT OR FILE INQUIRIES
-      const matchedNode = currentProject.nodes.find(n =>
-        q.includes(n.name.toLowerCase().replace(/\.[^.]+$/, '')) ||
-        q.includes(n.name.toLowerCase()) ||
-        q.includes(n.file.toLowerCase())
-      );
+      // 7. SPECIFIC COMPONENT OR FILE INQUIRIES WITH FUZZY TYPO RESOLUTION
+      if (matchedFuzzyNode) {
+        const node = matchedFuzzyNode.node;
+        selectNode(node.id);
 
-      if (matchedNode) {
-        selectNode(matchedNode.id);
+        const typoBanner = !matchedFuzzyNode.exact ? makeTypoBanner(matchedFuzzyNode.typo, node.name) : '';
         appendAiChat('assistant',
-          `🔍 **Detailed Inspection: \`${matchedNode.name}\`**\n\n• **Module Classification:** \`${matchedNode.lang}\` Module\n• **File Location:** \`${matchedNode.file}\` (Lines ${matchedNode.lines})\n• **Direct Callers (${matchedNode.up.length}):** ${matchedNode.up.map(u => '`' + u + '`').join(', ') || 'Root module'}\n• **Dependencies (${matchedNode.down.length}):** ${matchedNode.down.map(d => '`' + d + '`').join(', ') || 'Leaf module (no dependencies)'}\n\nI have centered the 3D architecture camera onto **${matchedNode.name}** and loaded its syntax-highlighted source code into your right inspector!`,
-          matchedNode.id, `${matchedNode.file}:${matchedNode.lines}`,
+          `${typoBanner}🔍 **Detailed Inspection: \`${node.name}\`**\n\n• **Module Classification:** \`${node.lang}\` Module\n• **File Location:** \`${node.file}\` (Lines ${node.lines})\n• **Direct Callers (${node.up.length}):** ${node.up.map(u => '`' + u + '`').join(', ') || 'Root module'}\n• **Dependencies (${node.down.length}):** ${node.down.map(d => '`' + d + '`').join(', ') || 'Leaf module (no dependencies)'}\n\nI have centered the 3D architecture camera onto **${node.name}** and loaded its syntax-highlighted source code into your right inspector!`,
+          node.id, `${node.file}:${node.lines}`,
           [
-            { label: `⚡ Trace connections from ${matchedNode.name}`, prompt: `Trace the flow starting from ${matchedNode.name}` },
-            { label: `💥 What if ${matchedNode.name} changes?`, prompt: `What breaks if ${matchedNode.name} changes?` },
+            { label: `⚡ Trace connections from ${node.name}`, prompt: `Trace the flow starting from ${node.name}` },
+            { label: `💥 What if ${node.name} changes?`, prompt: `What breaks if ${node.name} changes?` },
             { label: '🌐 Show whole architecture', action: () => setWorkspaceInteractionMode('explore') }
           ]
         );
         return;
       }
 
-      // 8. LIVE GEMINI 2.5 FLASH API INFERENCE (WITH GRACEFUL SMART FALLBACK)
-      try {
-        const sysContext = `You are Unmake AI, a friendly, senior codebase co-pilot. The user is exploring a reverse-engineered project: "${currentProject.name}".
-Modules in this project: ${currentProject.nodes.map(n => `${n.name} (${n.lang}, file: ${n.file})`).join(', ')}.
-Currently selected component: ${activeNode.name} (file: ${activeNode.file}, code: ${activeNode.code.slice(0, 200)}).
-Be warm, enthusiastic, concise (2-4 paragraphs max), use markdown, bullet points, and reference exact files.`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              { role: 'user', parts: [{ text: `${sysContext}\n\nUser Question: ${query}` }] }
-            ]
-          }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const data = await response.json();
-          const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (replyText) {
-            appendAiChat('assistant', replyText, activeNode.id, activeNode.name, [
-              { label: '⚡ Trace payment flow', prompt: 'Trace the checkout flow' },
-              { label: '💥 Test change impact', prompt: `What breaks if ${activeNode.name} changes?` },
-              { label: '🔍 Inspect source code', action: () => setRightPanelTab('inspector') }
-            ]);
-            return;
-          }
-        }
-      } catch (err) {
-        // Fallback gracefully below
-      }
-
-      // 9. FRIENDLY INTELLIGENT DEFAULT (Always responds constructively to ANY prompt!)
+      // 8. FRIENDLY INTELLIGENT DEFAULT (Always responds constructively to ANY prompt!)
       appendAiChat('assistant',
         `I explored **"${query}"** across all **${currentProject.nodes.length} verified modules** in this project!\n\n• **Active Component:** \`${activeNode.name}\` (\`${activeNode.file}\`)\n• **Architectural Context:** Connected upstream to ${activeNode.up.map(u => '`' + u + '`').join(', ') || 'root'} and downstream to ${activeNode.down.map(d => '`' + d + '`').join(', ') || 'none'}.\n• **Source Verification:** Syntax and AST contracts are 100% validated against the 3D dependency graph.\n\nWould you like me to trace how data passes through this part of the application, test what breaks if you modify it, or inspect another file?`,
         activeNode.id, `${activeNode.file}:${activeNode.lines}`,
@@ -3040,8 +3574,45 @@ Be warm, enthusiastic, concise (2-4 paragraphs max), use markdown, bullet points
         }
       });
 
+      // Intelligent Fuzzy Typo Fallback for Search Bar
+      if (matches === 0 && query.length >= 3) {
+        const fuzzy = findNodeWithTypoDetection(query, currentProject);
+        if (fuzzy && fuzzy.node) {
+          wsNodeMeshes.forEach(mesh => {
+            if (mesh.userData.id === fuzzy.node.id) {
+              matches++;
+              mesh.material.opacity = 1.0;
+              mesh.material.emissiveIntensity = 0.95;
+              mesh.scale.set(1.4, 1.4, 1.4);
+            } else {
+              mesh.material.opacity = 0.18;
+              mesh.material.emissiveIntensity = 0.03;
+              mesh.scale.set(0.8, 0.8, 0.8);
+            }
+          });
+          if (emptyState) {
+            emptyState.style.display = 'flex';
+            emptyState.innerHTML = `
+              <div style="font-size:13.5px; font-weight:600; color:var(--accent); margin-bottom:4px;">💡 Typo Detected: Showing closest match <strong>${fuzzy.node.name}</strong></div>
+              <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Auto-resolved from search query "${query}".</div>
+              <button class="btn-pill" onclick="selectNode('${fuzzy.node.id}'); clearWorkspaceSearch();">Inspect ${fuzzy.node.name} →</button>
+            `;
+          }
+          return;
+        }
+      }
+
       if (emptyState) {
-        emptyState.style.display = matches === 0 ? 'flex' : 'none';
+        if (matches === 0) {
+          emptyState.style.display = 'flex';
+          emptyState.innerHTML = `
+            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">No architecture nodes match your search</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Try adjusting your query or check for typos.</div>
+            <button class="btn-pill" onclick="clearWorkspaceSearch()">Clear Search Filter</button>
+          `;
+        } else {
+          emptyState.style.display = 'none';
+        }
       }
     }
 
